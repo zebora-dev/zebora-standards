@@ -7,9 +7,11 @@ Org-wide architectural and coding conventions for Zebora (zebora.io).
 ```
 general/          # Conventions that apply to every repo
   conventions.md
-prefect/          # Prefect orchestration conventions
+python/           # Python conventions (both Prefect repos)
   conventions.md
-frontend/         # Frontend conventions (framework, styling, state, API)
+prefect/          # Prefect-specific orchestration conventions (extends python/)
+  conventions.md
+frontend/         # Frontend conventions — marketing site + banrd-llm monorepo
   conventions.md
 ```
 
