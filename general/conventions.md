@@ -84,3 +84,19 @@ add to these rules; they never override them.
   invariant).
 - README covers: what the service does, how to run it locally, required env
   vars.
+
+## Changelog
+
+- Every repo keeps a `CHANGELOG.md` at its root, following
+  [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) +
+  [SemVer](https://semver.org). Newest entries first.
+- **When you complete or ship a meaningful change, add an entry.** Features,
+  fixes, breaking changes, and notable internal changes get logged; trivial
+  noise (typos, formatting-only) does not.
+- Keep in-flight work under an `## [Unreleased]` heading; move it under a
+  versioned, dated heading (`## [X.Y.Z] - YYYY-MM-DD`) on release. Group entries
+  under `### Added / Changed / Fixed / Removed / Security`.
+- Reference the Linear issue where relevant, e.g. `(ZEB-123)`.
+- Per-repo CHANGELOGs are the source of truth for that repo. The org-wide
+  production roll-up lives in the ops vault (`zebora-ops/Changelog.md`) and is
+  compiled from them during the weekly review.
