@@ -16,6 +16,10 @@ and this project adheres to [Semantic Versioning](https://semver.org).
   for the URL scoring pipeline (active-scope completeness, cross-path
   reconciliation, suspect-domain hunt, duplication, classification coverage,
   learned-baseline drift).
+- **`skills/zebora-scoring-vec`** — Visibility Entity Checker (VEC): interactive
+  QA for the visibility scoring pipeline (refresh, QA triage, entity review,
+  resolution & canonicalization, enrichment, feedback loop). Migrated from
+  machine-local `~/.claude/skills/`.
 
 ## [1.1.0] - 2026-07-21
 

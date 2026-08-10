@@ -41,7 +41,8 @@ Invoke with `/<skill-name> <args>` in Claude Code.
 
 | Skill | Purpose |
 |---|---|
+| `zebora-scoring-vec` | Visibility Entity Checker (VEC) — interactive QA for the visibility scoring pipeline: matview refresh, QA triage, entity review, resolution & canonicalization, enrichment, feedback loop. |
 | `zebora-scoring-url` | Citation/URL Checker (UCC) — reporting-only QA for the URL scoring pipeline (completeness, cross-path reconciliation, suspect domains, duplication, classification coverage, learned-baseline drift). |
 
-Other pipeline skills (`zebora-scoring-vec`, `zebora-ops`, `zebora-batch-report`, …)
-can be migrated here in follow-up PRs.
+Other pipeline skills (`zebora-ops`, `zebora-batch-report`, …) can be migrated
+here in follow-up PRs.
