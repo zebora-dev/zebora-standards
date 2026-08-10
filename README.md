@@ -13,6 +13,8 @@ prefect/          # Prefect-specific orchestration conventions (extends python/)
   conventions.md
 frontend/         # Frontend conventions — marketing site + banrd-llm monorepo
   conventions.md
+skills/           # Shared Claude Code skills (see skills/README.md)
+  <skill-name>/SKILL.md
 ```
 
 ## Consuming this repo

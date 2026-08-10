@@ -6,6 +6,17 @@ and this project adheres to [Semantic Versioning](https://semver.org).
 
 ## [Unreleased]
 
+### Added
+
+- **`skills/` directory** — shared Claude Code skills, versioned and reviewed via
+  PR instead of living local-only in each machine's `~/.claude/skills/`. See
+  `skills/README.md` for layout, install (symlink), and conventions
+  (reporting-only by default; declare side effects; keep schema refs accurate).
+- **`skills/zebora-scoring-url`** — Citation/URL Checker (UCC): reporting-only QA
+  for the URL scoring pipeline (active-scope completeness, cross-path
+  reconciliation, suspect-domain hunt, duplication, classification coverage,
+  learned-baseline drift).
+
 ## [1.1.0] - 2026-07-21
 
 ### Added
