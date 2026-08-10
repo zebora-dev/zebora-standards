@@ -6,6 +6,14 @@ and this project adheres to [Semantic Versioning](https://semver.org).
 
 ## [Unreleased]
 
+## [1.2.1] - 2026-08-10
+
+### Changed
+
+- **`skills/zebora-scoring-vec`** — synced to the canonical phase-gated, 10-phase
+  version (from `brand-score-pipeline`). The v1.2.0 migration inadvertently used
+  an older 9-phase snapshot from machine-local `~/.claude/skills/`.
+
 ## [1.2.0] - 2026-08-10
 
 ### Added
