@@ -1,6 +1,6 @@
 ---
 name: zebora-scoring-vec
-description: "Visibility Entity Checker (VEC) — interactive QA and management tool for the Zebora visibility scoring pipeline. Walks through the full lifecycle: matview refresh, QA triage, entity review, resolution & canonicalization, enrichment, and feedback loop suggestions. Use after any large batch run to validate scoring quality and close the loop on entity extraction accuracy."
+description: "Visibility Entity Checker (VEC) — interactive QA and management tool for the Zebora visibility scoring pipeline. Walks through the full lifecycle one phase at a time: matview refresh, QA triage, entity review, resolution, enrichment, brand/entity canonicalisation, and feedback loop suggestions. Use after any large batch run to validate scoring quality and close the loop on entity extraction accuracy."
 user-invokable: true
 argument-hint: "[phase] <batch_id>"
 ---
@@ -13,15 +13,71 @@ argument-hint: "[phase] <batch_id>"
 
 | Command | What it does |
 |---|---|
-| `/zebora-scoring-vec <batch_id>` | Full interactive walkthrough — all 9 phases in order |
+| `/zebora-scoring-vec <batch_id>` | Start the guided walkthrough at Phase 0/1, then pause after each phase (all 10 phases in order) |
 | `/zebora-scoring-vec qa <batch_id>` | Jump to QA triage only (Phase 2) |
 | `/zebora-scoring-vec entities <batch_id>` | Jump to entity extraction review (Phase 3) |
 | `/zebora-scoring-vec resolve <batch_id>` | Jump to resolution & canonicalization (Phase 4) |
-| `/zebora-scoring-vec enrich <brand_id>` | Jump to enrichment (Phase 5) |
-| `/zebora-scoring-vec refresh` | Refresh matviews only (Phase 6) |
-| `/zebora-scoring-vec target <batch_id>` | Target brand deep-dive (Phase 7) |
-| `/zebora-scoring-vec review <batch_id>` | Entity metrics QA review (Phase 8) |
-| `/zebora-scoring-vec feedback <batch_id>` | Generate prompt/context improvement suggestions (Phase 9) |
+| `/zebora-scoring-vec enrich <brand_id>` | Jump to enrichment — GPT + Gemini (Phase 5) |
+| `/zebora-scoring-vec canonicalise <brand_id>` | Brand/entity duplicate merge review (Phase 6) |
+| `/zebora-scoring-vec refresh` | Refresh matviews only (Phase 7) |
+| `/zebora-scoring-vec target <batch_id>` | Target brand deep-dive (Phase 8) |
+| `/zebora-scoring-vec review <batch_id>` | Entity metrics QA review (Phase 9) |
+| `/zebora-scoring-vec feedback <batch_id>` | Generate prompt/context improvement suggestions (Phase 10) |
+
+---
+
+## Operating mode — phase-gated workflow
+
+This skill must run **one phase at a time**. Do not execute the full lifecycle in
+one uninterrupted run unless the user explicitly asks for a fully automated run.
+
+Default behaviour:
+
+1. Run the requested phase only.
+2. Print a concise phase summary.
+3. List recommended actions, separating:
+   - actions already taken,
+   - actions needing user approval,
+   - suggested next phase.
+4. Stop and wait for the user to approve actions or ask to continue.
+
+When invoked as `/zebora-scoring-vec <batch_id>` with no phase argument:
+
+1. Run Phase 0 setup and Phase 1 health check.
+2. Print the Phase 1 review.
+3. Ask whether to continue to Phase 2 QA triage.
+4. Do not continue automatically.
+
+For write phases, always use an explicit approval gate:
+
+- Phase 4 resolution may write aliases/entities/candidate statuses.
+- Phase 5 enrichment may write websites/logos/metadata.
+- Phase 6 canonicalisation may write aliases and mark redundant rows inactive.
+- Phase 10 prompt/context feedback must never update prompt contexts without an
+  exact diff and explicit approval.
+
+Use this handoff format after every phase:
+
+```
+=== Phase <n> Review — <phase name> ===
+
+Summary
+  <key counts and findings>
+
+Actions taken
+  <writes performed, or "None">
+
+Recommended actions
+  <approval-needed actions, or "None">
+
+Next phase
+  <phase number and name>
+
+Waiting for approval/next instruction.
+```
+
+If a phase reveals a blocker, stop there and explain the blocker. Do not skip
+ahead.
 
 ---
 
@@ -50,20 +106,21 @@ SELECT
   b.brand_id,
   br.name AS brand_name,
   b.status,
-  (SELECT COUNT(*) FROM prompts_outputs po
-   JOIN prompts p ON p.id = po.prompt_id
-   WHERE po.batch_id = b.id AND po.active = true
-     AND p.measurements = '["Visibility"]') AS active_visibility_outputs,
-  (SELECT COUNT(*) FROM prompts_outputs WHERE batch_id = b.id AND active = true) AS active_outputs_all,
-  (SELECT COUNT(*) FROM scores_visibility WHERE batch_id = b.id AND active = true) AS scored_visibility_outputs
+  (SELECT COUNT(*) FROM prompts_outputs WHERE batch_id = b.id AND active = true) AS active_outputs,
+  (SELECT COUNT(*) FROM prompts_outputs WHERE batch_id = b.id) AS total_outputs,
+  (SELECT COUNT(*) FROM scores_visibility WHERE batch_id = b.id AND active = true) AS scored_outputs
 FROM batches b
 JOIN brands br ON br.id = b.brand_id
 WHERE b.id = '<batch_id>';
 ```
 
-Run via psql or Supabase MCP. Print `brand_id`, `brand_name`, `active_visibility_outputs`, `active_outputs_all`, `scored_visibility_outputs` so the user can confirm the right batch before proceeding.
+Run via psql or Supabase MCP. Print `brand_id`, `brand_name`, `active_outputs`, `total_outputs`, `scored_outputs` so the user can confirm the right batch before proceeding.
 
-Flag if `scored_visibility_outputs < active_visibility_outputs` — some Visibility outputs haven't been scored yet. Do not flag Brand Scorecard outputs as unscored — they score into a different table (`scores_brand_scorecard`) and will never appear in `scores_visibility`.
+Flag if `scored_outputs < active_outputs` — some active outputs haven't been scored yet.
+
+Phase gate: after Phase 0, confirm the resolved `brand_id` and `brand_name`.
+If the batch looks wrong, stop. If it looks right, proceed only to Phase 1 unless
+the user requested a different specific phase.
 
 ---
 
@@ -92,28 +149,56 @@ Report each view refreshed. If `mv_entity_metrics_tag_by_llm_brand` times out, n
 
 ### 1c — Batch health summary
 
-After refresh, print a health summary table:
+After refresh, print a health summary table. Only active prompt outputs whose prompt
+measurements include `Visibility` or `Sentiment` are expected to have visibility-v3
+scores, so the summary counts against that eligible set rather than all outputs:
 
 ```sql
+WITH eligible_outputs AS (
+  SELECT po.id, po.brand_id
+  FROM prompts_outputs po
+  JOIN prompts p ON p.id = po.prompt_id AND p.active = true
+  WHERE po.batch_id = '<batch_id>'
+    AND po.active = true
+    AND (
+      p.measurements::text ILIKE '%Visibility%'
+      OR p.measurements::text ILIKE '%Sentiment%'
+    )
+),
+scored_outputs AS (
+  SELECT DISTINCT ON (sv.output_id)
+         sv.output_id,
+         sv.metadata
+  FROM scores_visibility sv
+  JOIN eligible_outputs eo ON eo.id = sv.output_id
+  WHERE sv.batch_id = '<batch_id>'
+    AND sv.active = true
+    AND sv.scorer_model = 'visibility-v3'
+  ORDER BY sv.output_id, sv.id DESC
+),
+pending_candidates AS (
+  SELECT brand_id, COUNT(*) AS pending_count
+  FROM visibility_entity_resolution_candidates
+  WHERE status = 'pending'
+  GROUP BY brand_id
+)
 SELECT
-  COUNT(po.id) AS total_visibility_outputs,
-  COUNT(sv.id) AS scored,
-  ROUND(COUNT(sv.id)::numeric / NULLIF(COUNT(po.id), 0) * 100, 1) AS pct_scored,
-  COUNT(CASE WHEN sv.metadata->'entity_qa'->>'overall_status' = 'pass' THEN 1 END) AS qa_pass,
-  COUNT(CASE WHEN sv.metadata->'entity_qa'->>'overall_status' = 'review' THEN 1 END) AS qa_review,
-  COUNT(CASE WHEN sv.metadata->'entity_qa'->>'overall_status' = 'fail' THEN 1 END) AS qa_fail,
-  (SELECT COUNT(*) FROM visibility_entity_resolution_candidates
-   WHERE brand_id = (SELECT brand_id FROM batches WHERE id = '<batch_id>')
-     AND status = 'pending') AS pending_candidates
-FROM prompts_outputs po
-JOIN prompts p ON p.id = po.prompt_id
-LEFT JOIN scores_visibility sv ON sv.output_id = po.id AND sv.active = true
-WHERE po.batch_id = '<batch_id>'
-  AND po.active = true
-  AND p.measurements = '["Visibility"]';
+  COUNT(eo.id) AS total_outputs,
+  COUNT(so.output_id) AS scored,
+  ROUND(COUNT(so.output_id)::numeric / NULLIF(COUNT(eo.id), 0) * 100, 1) AS pct_scored,
+  COUNT(CASE WHEN so.metadata->'entity_qa'->>'overall_status' = 'pass' THEN 1 END) AS qa_pass,
+  COUNT(CASE WHEN so.metadata->'entity_qa'->>'overall_status' = 'review' THEN 1 END) AS qa_review,
+  COUNT(CASE WHEN so.metadata->'entity_qa'->>'overall_status' = 'fail' THEN 1 END) AS qa_fail,
+  COALESCE(MAX(pc.pending_count), 0) AS pending_candidates
+FROM eligible_outputs eo
+LEFT JOIN scored_outputs so ON so.output_id = eo.id
+LEFT JOIN pending_candidates pc ON pc.brand_id = eo.brand_id;
 ```
 
-Only Visibility outputs are counted — Brand Scorecard outputs (`measurements = '["Brand Scorecard"]'`) score into a different table and are excluded. Flag if: `pct_scored < 95%`, `qa_fail > 0`, `qa_review > 10%`, or `pending_candidates > 20`.
+Flag if: `pct_scored < 95%`, `qa_fail > 0`, `qa_review > 10%`, or `pending_candidates > 20`.
+
+Phase gate: after Phase 1, summarize health, refresh status, and any flags.
+Recommend whether to continue to Phase 2 QA triage. Stop and wait.
 
 ---
 
@@ -128,10 +213,8 @@ SELECT
   ROUND(AVG((sv.metadata->'entity_qa'->>'overall_score')::numeric), 3) AS avg_score,
   MIN((sv.metadata->'entity_qa'->>'overall_score')::numeric) AS min_score
 FROM scores_visibility sv
-JOIN prompts_outputs po ON po.id = sv.output_id AND po.active = true
-JOIN prompts p ON p.id = po.prompt_id AND p.active = true
-WHERE po.batch_id = '<batch_id>'
-  AND sv.active = true
+JOIN prompts_outputs po ON po.id = sv.output_id
+WHERE po.batch_id = '<batch_id>' AND sv.active = true
   AND sv.metadata->'entity_qa' IS NOT NULL
 GROUP BY 1 ORDER BY 1;
 ```
@@ -152,8 +235,7 @@ SELECT sv.output_id,
        sv.metadata->'entity_qa'->>'summary' AS summary,
        sv.metadata->'entity_qa'->'entity_reviews' AS entity_reviews
 FROM scores_visibility sv
-JOIN prompts_outputs po ON po.id = sv.output_id AND po.active = true
-JOIN prompts p ON p.id = po.prompt_id AND p.active = true
+JOIN prompts_outputs po ON po.id = sv.output_id
 WHERE po.batch_id = '<batch_id>'
   AND sv.active = true
   AND sv.metadata->'entity_qa' IS NOT NULL
@@ -162,45 +244,6 @@ LIMIT 10;
 ```
 
 For each failing output, parse `entity_reviews` and summarise the issue types (wrong entity type, bad canonicalization, hallucinated entity, missing brand attribution). Group similar issues to spot patterns.
-
-### 2d — Force re-score a specific output on the remote server
-
-Use this when a QA re-score (`rerun_visibility_v3_qa.py`) hasn't fixed the issue and a full extraction re-run is needed.
-
-**Step 1 — Ensure remote workers are running** (check with the user if unsure — workers may be stopped to save cost).
-
-**Step 2 — Trigger the full re-score with `force: true`:**
-
-```bash
-source .env && curl -s -X POST "https://brand-score-api.fly.dev/api/workflows/score-single-output" \
-  -H "Content-Type: application/json" \
-  -H "X-API-Key: $API_KEY" \
-  -d '{"batch_id": "<batch_id>", "output_id": "<output_id>", "force": true}'
-```
-
-The response includes a `workflow_run_id`. Without `force: true` the scoring plan will skip already-scored outputs, running only validation — the extraction won't re-run.
-
-**Step 3 — Poll for completion:**
-
-```bash
-source .env && curl -s "https://brand-score-api.fly.dev/api/workflows/<workflow_run_id>/status" \
-  -H "X-API-Key: $API_KEY" | python3 -m json.tool
-```
-
-A successful full re-score will show `task_stats` containing `visibility_v3` (and typically `output_qa`, `url`, `sentiment`). If `task_stats` only shows `validate-batch-scores`, the output was skipped — check that `force: true` was passed.
-
-**Step 4 — Verify the result:**
-
-```sql
-SELECT
-  sv.output_id,
-  ROUND((sv.metadata->'entity_qa'->>'overall_score')::numeric, 3) AS score,
-  sv.metadata->'entity_qa'->>'overall_status' AS status,
-  jsonb_array_length(sv.entities) AS entity_count,
-  sv.metadata->'entity_qa'->>'summary' AS summary
-FROM scores_visibility sv
-WHERE sv.output_id = <output_id> AND sv.active = true;
-```
 
 ### 2c — Pattern clustering
 
@@ -365,11 +408,257 @@ After both passes, re-run the unenriched query from Phase 3c and report how many
 
 ---
 
-## Phase 6 · Refresh matviews
+## Phase 6 · Brand & entity canonicalisation review
 
-Run this phase whenever aliases, dimension rows, or enrichment data have changed — after Phase 4 (if aliases were written), after Phase 5 (if enrichment ran), and again after Phase 8d (if further aliases were written). It is safe to run multiple times.
+After resolution and enrichment, the pipeline may have created near-duplicate
+dimension rows. Run a separate merge review for canonical brands and canonical
+entities before producing final feedback suggestions.
 
-### 6a — Refresh entity metrics matviews
+This phase has two independent passes:
+
+1. **Brand canonicalisation** — merge duplicate `visibility_entity_brands` rows.
+2. **Entity canonicalisation** — merge duplicate `visibility_entities` rows.
+
+Do not delete rows. For approved merges, write an alias pointing the redundant
+surface form at the canonical row, then mark the redundant dimension row
+`active = false`.
+
+### 6a — Inventory all active brands
+
+Fetch the full active brand list:
+
+```sql
+SELECT id, name, normalized_brand_key, website, metadata
+FROM visibility_entity_brands
+WHERE brand_id = '<brand_id>'
+  AND active = true
+ORDER BY normalized_brand_key, name;
+```
+
+Analyse this list for duplicate or near-duplicate canonical brands. Look for:
+
+- Same website/domain with different names.
+- Same normalized key except suffixes such as `uk`, `official`, `guide`,
+  `resources`, `parent`, `parents`, `hub`.
+- Punctuation/plural variants.
+- Brand aliases that were promoted into separate brand rows.
+- LLM-created variants that should be an alias of a known canonical brand.
+
+Use SQL to surface obvious exact/domain overlaps:
+
+```sql
+SELECT lower(regexp_replace(coalesce(website, ''), '^https?://(www\.)?', '')) AS domain_key,
+       COUNT(*) AS rows,
+       jsonb_agg(jsonb_build_object('id', id, 'name', name, 'key', normalized_brand_key)) AS brands
+FROM visibility_entity_brands
+WHERE brand_id = '<brand_id>' AND active = true AND website IS NOT NULL
+GROUP BY 1
+HAVING COUNT(*) > 1
+ORDER BY rows DESC;
+```
+
+Then do a fuzzy/semantic review over the full list. Present proposed merges as:
+
+`Canonical brand | Redundant brand | Reason | Evidence`
+
+Example:
+
+`Amazing Apprenticeships | Amazing Apprenticeships (Parents) | parent-facing variant of same brand | same domain / same normalized prefix`
+
+Ask for explicit user approval before writing any merge.
+
+### 6b — Apply approved brand merges
+
+For each approved brand merge:
+
+1. Insert or reactivate a brand alias from the redundant brand name/key to the canonical brand.
+2. Re-parent child entities from the redundant brand to the canonical brand where there is no entity-key conflict.
+3. For child entity conflicts, merge the redundant entity into the canonical entity using the entity merge process in Phase 6d.
+4. Mark the redundant brand row inactive.
+
+Use one transaction per approved merge:
+
+```sql
+BEGIN;
+
+-- 1. Alias redundant brand to canonical brand.
+INSERT INTO visibility_entity_brand_aliases (
+  brand_id, entity_brand_id, alias_name, alias_key, active
+)
+VALUES (
+  '<brand_id>',
+  <canonical_entity_brand_id>,
+  '<redundant_brand_name>',
+  '<redundant_normalized_brand_key>',
+  true
+)
+ON CONFLICT (brand_id, alias_key) DO UPDATE
+SET entity_brand_id = EXCLUDED.entity_brand_id,
+    alias_name = EXCLUDED.alias_name,
+    active = true,
+    updated_at = now();
+
+-- 2. Move non-conflicting child entities to the canonical brand.
+UPDATE visibility_entities ve
+SET entity_brand_id = <canonical_entity_brand_id>,
+    updated_at = now()
+WHERE ve.brand_id = '<brand_id>'
+  AND ve.entity_brand_id = <redundant_entity_brand_id>
+  AND ve.active = true
+  AND NOT EXISTS (
+    SELECT 1
+    FROM visibility_entities existing
+    WHERE existing.brand_id = ve.brand_id
+      AND existing.entity_brand_id = <canonical_entity_brand_id>
+      AND existing.normalized_entity_key = ve.normalized_entity_key
+      AND existing.active = true
+  );
+
+-- 3. Deactivate redundant brand row.
+UPDATE visibility_entity_brands
+SET active = false, updated_at = now()
+WHERE id = <redundant_entity_brand_id>
+  AND brand_id = '<brand_id>';
+
+COMMIT;
+```
+
+After brand merges, report:
+
+- Brand aliases written.
+- Brand rows deactivated.
+- Child entities re-parented.
+- Child entity conflicts that need Phase 6d handling.
+
+### 6c — Inventory all active entities
+
+Fetch the full active entity list, grouped by canonical parent brand:
+
+```sql
+SELECT ve.id,
+       veb.id AS entity_brand_id,
+       veb.name AS brand,
+       ve.name AS entity,
+       ve.normalized_entity_key,
+       ve.entity_type,
+       ve.website,
+       ve.metadata
+FROM visibility_entities ve
+JOIN visibility_entity_brands veb
+  ON veb.id = ve.entity_brand_id
+ AND veb.brand_id = ve.brand_id
+ AND veb.active = true
+WHERE ve.brand_id = '<brand_id>'
+  AND ve.active = true
+ORDER BY veb.name, ve.normalized_entity_key, ve.name;
+```
+
+Analyse this list for duplicate or near-duplicate canonical entities. Keep the
+brand pass separate from the entity pass: entity duplicates should normally be
+reviewed within the same canonical parent brand unless there is clear evidence
+the parent brand merge in Phase 6a should happen first.
+
+Look for:
+
+- Same website/domain under the same parent brand.
+- Resource-title variants under the same parent brand.
+- Parent-resource suffix variants such as `for parents`, `parent hub`,
+  `resources`, `guide`, `guides`, `parents and carers`, `parent and carer`.
+- Entity rows where one is clearly the parent canonical resource and the other
+  is a verbose surface variant.
+
+Example:
+
+`Amazing Apprenticeships resources` and
+`Amazing Apprenticeships resources for parents` should usually merge into the
+cleaner canonical entity, with the redundant name retained as an alias.
+
+Present proposed merges as:
+
+`Parent brand | Canonical entity | Redundant entity | Reason | Evidence`
+
+Ask for explicit user approval before writing any merge.
+
+### 6d — Apply approved entity merges
+
+For each approved entity merge:
+
+1. Insert or reactivate an entity alias from the redundant entity name/key to the canonical entity.
+2. Mark the redundant entity row inactive.
+3. Preserve metadata by appending a merge note to the redundant row.
+
+Use one transaction per approved merge:
+
+```sql
+BEGIN;
+
+INSERT INTO visibility_entity_aliases (
+  brand_id, visibility_entity_id, alias_name, alias_key, active
+)
+VALUES (
+  '<brand_id>',
+  <canonical_visibility_entity_id>,
+  '<redundant_entity_name>',
+  '<redundant_normalized_entity_key>',
+  true
+)
+ON CONFLICT (brand_id, alias_key) DO UPDATE
+SET visibility_entity_id = EXCLUDED.visibility_entity_id,
+    alias_name = EXCLUDED.alias_name,
+    active = true,
+    updated_at = now();
+
+UPDATE visibility_entities
+SET active = false,
+    metadata = metadata || jsonb_build_object(
+      'merged_into_visibility_entity_id', <canonical_visibility_entity_id>,
+      'merged_reason', '<short_reason>',
+      'merged_at', now()::text,
+      'merged_by', 'zebora-scoring-vec'
+    ),
+    updated_at = now()
+WHERE id = <redundant_visibility_entity_id>
+  AND brand_id = '<brand_id>';
+
+COMMIT;
+```
+
+After entity merges, report:
+
+- Entity aliases written.
+- Entity rows deactivated.
+- Any merges skipped because the canonical target was ambiguous.
+
+### 6e — Post-merge checks
+
+After approved brand/entity merges, re-run these checks:
+
+```sql
+SELECT COUNT(*) AS active_brands
+FROM visibility_entity_brands
+WHERE brand_id = '<brand_id>' AND active = true;
+
+SELECT COUNT(*) AS active_entities
+FROM visibility_entities
+WHERE brand_id = '<brand_id>' AND active = true;
+```
+
+If merges were applied, run Phase 7 (refresh) so the metric matviews pick up the
+merges before any downstream review. Do not refresh automatically unless the user
+confirms.
+
+Phase gate: after Phase 6, summarize proposed merges or applied merges. If only
+proposals were generated, stop for approval. If merges were applied, report
+post-merge counts and recommend a Phase 7 metrics refresh. Do not refresh
+automatically unless the user confirms.
+
+---
+
+## Phase 7 · Refresh matviews
+
+Run this phase whenever aliases, dimension rows, or enrichment data have changed — after Phase 4 (if aliases were written), after Phase 5 (if enrichment ran), after Phase 6 (if merges were applied), and again after Phase 9d (if further aliases were written). It is safe to run multiple times.
+
+### 7a — Refresh entity metrics matviews
 
 ```sql
 SELECT public.refresh_entity_metrics_v2('<batch_id>'::uuid);
@@ -385,11 +674,11 @@ Report the refresh result JSON (view names + ms). If `refresh_url_scores_v1` is 
 
 ---
 
-## Phase 7 · Target brand deep-dive
+## Phase 8 · Target brand deep-dive
 
 This phase focuses specifically on the target brand and its entities — checking whether the pipeline has captured all mentions, and whether any have been missed.
 
-### 7a — Target brand entity summary
+### 8a — Target brand entity summary
 
 Fetch the target brand and all its entities from the view:
 
@@ -411,7 +700,7 @@ ORDER BY mention_total DESC;
 
 Present as a table. Note which entities are fully resolved (`entity_id IS NOT NULL`) vs unresolved-keyed (`entity_id IS NULL`).
 
-### 7b — Raw response scan for missed mentions
+### 8b — Raw response scan for missed mentions
 
 For each entity name and key aliases, scan `prompts_outputs.response` directly to find outputs where the brand/entity appears in the raw text but was NOT captured in scoring:
 
@@ -431,12 +720,12 @@ WHERE po.batch_id = '<batch_id>'
 LIMIT 20;
 ```
 
-Use `brand_name` resolved in Phase 0. Run for the primary brand name, and repeat for each top entity name from Phase 7a (e.g. sub-brands, products). If misses are found:
+Use `brand_name` resolved in Phase 0. Run for the primary brand name, and repeat for each top entity name from Phase 8a (e.g. sub-brands, products). If misses are found:
 - Show the output preview and explain why the entity likely wasn't captured (entity not in alias tables, extraction missed it, wrong entity type, etc.)
 - Flag how many outputs are affected
 - Suggest whether the fix is an alias, a prompt context change, or a re-score
 
-### 7c — Cross-check output_ids vs entity mention counts
+### 8c — Cross-check output_ids vs entity mention counts
 
 For each target brand entity row, verify that `mentions_count` roughly aligns with `array_length(output_ids, 1)`. A large discrepancy (e.g. 50 mention_total but only 3 output_ids) suggests aggregation issues or missing fact rows. Flag any rows where:
 
@@ -448,11 +737,11 @@ These may indicate duplicate scoring, over-counting, or an alias that is pulling
 
 ---
 
-## Phase 8 · Entity metrics QA review
+## Phase 9 · Entity metrics QA review
 
 A systematic row-by-row review of `v_entity_metrics_with_sources` to validate extraction quality, counts, and entity correctness.
 
-### 8a — Full entity metrics pull
+### 9a — Full entity metrics pull
 
 ```sql
 SELECT
@@ -469,7 +758,7 @@ WHERE batch_id = '<batch_id>'
 ORDER BY mention_total DESC;
 ```
 
-### 8b — Row-by-row validation
+### 9b — Row-by-row validation
 
 For each row, check:
 
@@ -484,7 +773,7 @@ For each row, check:
 
 4. **Unresolved keyed rows** (`entity_id IS NULL`) — for any with `mention_total > 1`, surface them as alias candidates. Group by `entity_brand_name` and present to the user for a resolution decision.
 
-### 8c — Compare with raw matview
+### 9c — Compare with raw matview
 
 Compare `v_entity_metrics_with_sources` against `mv_entity_metrics_overall_llm_brand_entity_v2` directly to surface discrepancies:
 
@@ -518,7 +807,7 @@ Flag any rows with status `count-mismatch` or `missing-from-view`. These indicat
 - **count-mismatch**: aggregation discrepancy between the raw matview and the view JOIN — could be a missing fact row or a LATERAL join condition issue
 - **missing-from-view**: row exists in the matview but not the QA view — check whether `entity_brand_id` or `entity_id` is NULL causing a JOIN failure
 
-### 8d — Alias and entity correction actions
+### 9d — Alias and entity correction actions
 
 After the review, present a consolidated action list to the user:
 
@@ -528,11 +817,11 @@ After the review, present a consolidated action list to the user:
 | "NCS website" | URL-style noise | Mark as ignored in resolution candidates |
 | "Careers & Enterprise" | Short form of "Careers & Enterprise Company" | Add brand alias |
 
-For each: show the alias INSERT SQL and ask the user to confirm before writing. After any writes, re-run Phase 6 (refresh) before continuing to Phase 9.
+For each: show the alias INSERT SQL and ask the user to confirm before writing. After any writes, re-run Phase 7 (refresh) before continuing to Phase 10.
 
 ---
 
-## Phase 9 · Feedback loop
+## Phase 10 · Feedback loop
 
 After reviewing QA failures and entity patterns from Phases 2–3, synthesise actionable suggestions. For each category:
 
@@ -612,33 +901,39 @@ Health
   QA fail:      X
 
 Actions taken
-  Matviews refreshed:    X times (Phase 1 + Phase 6 if changes made)
+  Matviews refreshed:    X times (Phase 1 + Phase 7 if changes made)
   Candidates resolved:   X (Phase 1 deterministic: X · Phase 2 LLM: X)
   Human aliases written: X
   Candidates ignored:    X
   Brands enriched:       X (GPT: X · Gemini: X)
   Entities enriched:     X (GPT: X · Gemini: X)
 
-Target brand review (Phase 7)
+Canonicalisation (Phase 6)
+  Brand merges applied:  X (aliases written · rows deactivated)
+  Entity merges applied: X (aliases written · rows deactivated)
+  Merges pending approval: X
+
+Target brand review (Phase 8)
   Target brand entities: X resolved · X unresolved-keyed
   Raw response misses:   X outputs mention brand but not captured
   Count anomalies:       X rows flagged
 
-Entity metrics QA (Phase 8)
+Entity metrics QA (Phase 9)
   Rows reviewed:         X
   Source text issues:    X
   Count mismatches:      X
   Alias candidates:      X (pending approval)
   Noise / ignored:       X
 
-Feedback suggestions (Phase 9)
+Feedback suggestions (Phase 10)
   Alias additions:       X (pending approval)
   category_rules edits:  X (pending approval)
   brand_profile gaps:    X (pending approval)
 
 Next steps
-  [ ] Apply any pending aliases from Phase 8 review, then re-run Phase 6 refresh
-  [ ] Apply any pending category_rules / brand_profile changes from Phase 9
+  [ ] Apply any pending merges from Phase 6, then re-run Phase 7 refresh
+  [ ] Apply any pending aliases from Phase 9 review, then re-run Phase 7 refresh
+  [ ] Apply any pending category_rules / brand_profile changes from Phase 10
   [ ] Re-score low-QA outputs after fixes: POST /api/workflows/score-single-output
   [ ] Re-run /zebora-scoring-vec review to validate fixes landed correctly
 ```
@@ -647,6 +942,7 @@ Next steps
 
 ## Important rules
 
+- **Run one phase at a time.** Unless the user explicitly asks for a fully automated run, stop after each phase, summarise, and wait for approval before continuing (see *Operating mode — phase-gated workflow* above).
 - **Never update `visibility_prompt_contexts`** without showing the user the exact diff and getting explicit confirmation.
 - **Never mark candidates as `auto_resolved`** manually — only the resolution pipeline should do this.
 - **Never delete dimension rows** — mark `active = false` only, and only with user confirmation.
