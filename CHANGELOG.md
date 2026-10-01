@@ -6,6 +6,20 @@ and this project adheres to [Semantic Versioning](https://semver.org).
 
 ## [Unreleased]
 
+### Changed
+
+- **`skills/zebora-scoring-vec` Phase 4** — replaced alias-writing resolution with a
+  batch canonicaliser (`scripts/canonicalise_batch.py` + `scripts/vec_titles.py`). It
+  rewrites the batch's stored `scores_visibility.entities[*].entity` / `.brand` to the
+  confirmed game (exact name → alias → unique cleaned title), keeps the original wording
+  in `raw_entity` / `raw_brand` with a `canonicalised` note, and groups unmatched
+  variants. No aliases, no new rows, no schema change; dry run by default. Aliases are
+  now reserved for verified judgement calls (edition/family roll-ups). Warns against
+  running `entity_resolution_v3` in write mode (row explosion + shift-by-one aliases).
+- **`skills/zebora-scoring-vec` Phase 1b / 7** — refresh with per-batch
+  `refresh_entity_metrics_v2`; never `refresh_entity_metrics_matviews.py` /
+  `refresh_url_scores_v1` without go-ahead (they lock the live dashboard).
+
 ## [1.2.1] - 2026-08-10
 
 ### Changed

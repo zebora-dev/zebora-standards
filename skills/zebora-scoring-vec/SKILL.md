@@ -16,7 +16,7 @@ argument-hint: "[phase] <batch_id>"
 | `/zebora-scoring-vec <batch_id>` | Start the guided walkthrough at Phase 0/1, then pause after each phase (all 10 phases in order) |
 | `/zebora-scoring-vec qa <batch_id>` | Jump to QA triage only (Phase 2) |
 | `/zebora-scoring-vec entities <batch_id>` | Jump to entity extraction review (Phase 3) |
-| `/zebora-scoring-vec resolve <batch_id>` | Jump to resolution & canonicalization (Phase 4) |
+| `/zebora-scoring-vec resolve <batch_id>` | Canonicalise the batch's stored entity names — auto-fix, no aliases (Phase 4) |
 | `/zebora-scoring-vec enrich <brand_id>` | Jump to enrichment — GPT + Gemini (Phase 5) |
 | `/zebora-scoring-vec canonicalise <brand_id>` | Brand/entity duplicate merge review (Phase 6) |
 | `/zebora-scoring-vec refresh` | Refresh matviews only (Phase 7) |
@@ -50,7 +50,7 @@ When invoked as `/zebora-scoring-vec <batch_id>` with no phase argument:
 
 For write phases, always use an explicit approval gate:
 
-- Phase 4 resolution may write aliases/entities/candidate statuses.
+- Phase 4 rewrites the batch's stored entity names (dry run first; backup kept) and, for confirmed judgement calls only, aliases.
 - Phase 5 enrichment may write websites/logos/metadata.
 - Phase 6 canonicalisation may write aliases and mark redundant rows inactive.
 - Phase 10 prompt/context feedback must never update prompt contexts without an
@@ -88,7 +88,7 @@ ahead.
 - **Key modules:** `db/entity_resolution_v3.py`, `db/entity_enrichment_v3.py`, `db/entity_enrichment_gemini.py`, `db/refresh_views.py`
 - **Key scripts:** `scripts/refresh_entity_metrics_matviews.py`
 - **DB:** PostgreSQL via `.env` (SUPABASE_URL / SUPABASE_SERVICE_KEY / DATABASE_URL)
-- **Python env:** `poetry run python` from the repo root (`.venv/bin/python` does not exist)
+- **Python env:** `poetry run python` (or `.venv/bin/python`) from the repo root
 
 When running any Python, always `cd` to the repo root first: `cd /Users/grantsimmonds/Documents/dev/branded-llm/brand_score_pipeline`
 
@@ -140,12 +140,16 @@ If no rows: tell the user this must be seeded first (see `docs/new_brand_visibil
 
 ### 1b — Run matview refresh
 
+Refresh **this batch only**:
+
 ```bash
 cd /Users/grantsimmonds/Documents/dev/branded-llm/brand_score_pipeline && \
-poetry run python scripts/refresh_entity_metrics_matviews.py
+psql "$DATABASE_URL" -c "SET statement_timeout='12min'; SET lock_timeout='10s'; SELECT public.refresh_entity_metrics_v2('<batch_id>'::uuid);"
 ```
 
-Report each view refreshed. If `mv_entity_metrics_tag_by_llm_brand` times out, note it — the key reporting views complete before it.
+It refreshes the entity/citation matviews (~3 min) without blocking the dashboard. Do **not** use
+`scripts/refresh_entity_metrics_matviews.py` here: it also refreshes `mv_url_scores_enriched_v4`
+(non-concurrently), which locks the live dashboard for every client.
 
 ### 1c — Batch health summary
 
@@ -314,67 +318,92 @@ ORDER BY type, name;
 
 ---
 
-## Phase 4 · Resolution & canonicalization
+## Phase 4 · Canonicalise the batch (auto-fix)
 
-### 4a — Run entity resolution
+Goal: make the batch's stored entity names match the confirmed games **without writing
+aliases or creating rows**. The reporting views read `scores_visibility.entities[*].entity`
+/ `.brand` (via `mv_visibility_entity_output_facts_raw`), so rewriting those to the confirmed
+game's exact name and brand makes them match directly. Variant spellings are handled by the
+cleaned-title rule, not by aliases.
 
-```python
-import sys, os
-sys.path.insert(0, '.')
-from dotenv import load_dotenv; load_dotenv()
-from db.entity_resolution_v3 import entity_resolution_v3
+> Do **not** run `db.entity_resolution_v3.entity_resolution_v3` in write mode. On Big Potato UK
+> Sep 2026 it would have created 1,449 entities and 303 brands from one batch, and its LLM step
+> returns results out of order (shift-by-one aliases, e.g. "Scavenger Hunt" → Trivia Quiz,
+> "Guess the Song" → Scavenger Hunt). Wrong aliases also corrupt stored scores, because the scorer
+> canonicalises with them.
 
-result = entity_resolution_v3(batch_id=BATCH_ID)
-print(f"Status: {result['status']}")
-print(f"Phase 1 auto-resolved: {result.get('phase1_resolved', 0)}")
-print(f"Phase 2 LLM resolved: {result.get('phase2_resolved', 0)}")
-print(f"Alias QA flagged: {result.get('alias_qa_flagged', 0)}")
-print(f"Still pending: {result.get('still_pending', 0)}")
+### 4a — Snapshot
+
+Before any write, export the brand's dimension rows to a dated folder under
+`~/Documents/dev/branded-llm/db_backup/` (`visibility_entities`, `visibility_entity_brands`,
+`visibility_entity_aliases`, `visibility_entity_brand_aliases`,
+`visibility_entity_resolution_candidates`, all rows, CSV). The canonicaliser also saves the batch's
+pre-rewrite entities JSON itself.
+
+### 4b — Dry run the canonicaliser
+
+```bash
+cd /Users/grantsimmonds/Documents/dev/branded-llm/brand_score_pipeline && \
+poetry run python ~/.claude/skills/zebora-scoring-vec/scripts/canonicalise_batch.py --batch-id <batch_id>
 ```
 
-Then run rescan to catch anything missed:
+Match order per extracted name (first hit wins):
 
-```python
-from db.entity_resolution_v3 import rescan_unmatched_for_batch
-rescan_result = rescan_unmatched_for_batch(batch_id=BATCH_ID)
-print(f"Rescan pushed {rescan_result.get('pushed', 0)} new candidates")
+| Rule | Meaning |
+|---|---|
+| `exact` | `normalize_company_name(name)` equals a confirmed game's `normalized_entity_key` |
+| `alias` | an active alias of a confirmed game (aliases now only hold **judgement calls**, e.g. "Bananagrams Duel" → Bananagrams, or genuinely different wording like "Mine Turtle") |
+| `title` | same cleaned title as **exactly one** confirmed game: case, punctuation, accents, `&`, a leading "the", number words, "game / card game / board game / party game" suffixes, edition/format/packaging words (2nd Edition, Travel, Mini, Deluxe, UK, "(2025 Edition)"), retailer/publisher tails, word order (`scripts/vec_titles.py`) |
+
+Unmatched names are grouped by cleaned title and rewritten to the group's most frequent spelling
+and brand, so variants report as one item. Colon subtitles, sequel numbers and
+junior/kids/family/after-dark words are **not** stripped — those are often different products.
+
+Report: items per rule, matched share, number of scores to update.
+
+### 4c — Apply (approval gate)
+
+After the user approves the dry run:
+
+```bash
+cd /Users/grantsimmonds/Documents/dev/branded-llm/brand_score_pipeline && \
+poetry run python ~/.claude/skills/zebora-scoring-vec/scripts/canonicalise_batch.py --batch-id <batch_id> \
+  --apply --refresh --backup-dir ~/Documents/dev/branded-llm/db_backup/<folder>
 ```
 
-### 4b — Human review queue
+Each rewritten item keeps its original wording in `raw_entity` / `raw_brand` and gets
+`canonicalised = {rule, entity_id, at, by}`. Re-runs are idempotent (they start from `raw_*`), so
+run it again after any re-score. `--refresh` runs the per-batch `refresh_entity_metrics_v2` and
+prints the matched share.
 
-After resolution, show what needs human attention:
+### 4d — Leftovers (optional, small)
 
-```sql
-SELECT id, raw_brand, raw_entity, observed_count,
-       match_source, confidence,
-       suggested_entity_brand_id,
-       suggested_visibility_entity_id,
-       metadata->>'qa_flag_reason' AS qa_flag_reason,
-       LEFT(sample_source_text::text, 150) AS sample
-FROM visibility_entity_resolution_candidates
-WHERE brand_id = '<brand_id>'
-  AND status = 'pending'
-  AND (suggested_visibility_entity_id IS NOT NULL
-       OR match_source = 'llm_qa_flagged'
-       OR observed_count >= 3)
-ORDER BY observed_count DESC;
-```
+What stays unmatched is mostly genuinely new games and generic activities. Only if it is worth it:
+take the high-frequency leftovers, propose a parent game by longest title prefix, and verify each
+proposal with an **independent AI check** (subagents; verdict same / edition / different / unsure,
+with a reason). Write an alias **only** for confirmed same/edition calls — those are the judgement
+calls aliases are for — and log it in the game's `metadata.alias_log`. The prefix rule alone is
+~85% precise (it maps "Pandemic: Reign of Cthulhu" → Pandemic, "Mafia de Cuba" → Mafia), so it
+never writes on its own.
 
-For each row, present to the user:
-- The raw entity name
-- The suggested canonical mapping (if any)
-- The QA flag reason
-- A sample of the source text it appeared in
+Never hand the user a long review list: surface only "unsure" items and anything that would move
+the target brand's numbers (aim for 0–20 rows). Never create entities or brands without explicit
+approval.
 
-Ask the user: **accept suggestion / provide correct mapping / mark as noise**
+### 4e — Stored-name audit and re-score
 
-Based on their answer, either:
-- Write the alias: `INSERT INTO visibility_entity_aliases (brand_id, visibility_entity_id, alias_name, alias_key, active) VALUES (...)`  — both `alias_name` (display) and `alias_key` (normalised lowercase) are required NOT NULL
-- Write brand alias: `INSERT INTO visibility_entity_brand_aliases (brand_id, entity_brand_id, alias_name, alias_key, active) VALUES (...)`
-- Mark ignored: `UPDATE visibility_entity_resolution_candidates SET status = 'ignored' WHERE id = ...`
-- When resolving candidates: `confidence` column is **numeric** (use `1.0` not `'high'`)
+If an alias was wrong, the scorer may already have stored the wrong name. Flag names where ≥50% of
+their rows' source text does not contain the stored name (e.g. "Song Association" stored for
+"The Traitors Board Game"), fix the cause, then re-score those outputs with
+`force=True, scorer_types=["visibility_v3"]` and re-run 4c.
 
-After writing, confirm back how many were resolved.
+### Notes
+
+- Two key normalisers exist: the scorer's `_normalize_alias` keeps a leading "the"; SQL
+  `normalize_company_name` strips it. Any alias you write must use `normalize_company_name`.
+  Existing `the…` alias twins are used by the scorer — don't deactivate them.
+- Aliases made redundant by the `title` rule can be retired (`active = false`, logged in the
+  target game's `metadata.alias_log`).
 
 ---
 
@@ -670,7 +699,7 @@ Run via psql with an extended timeout:
 psql "$DATABASE_URL" -c "SET statement_timeout = '10min'; SELECT public.refresh_entity_metrics_v2('<batch_id>'::uuid);"
 ```
 
-Report the refresh result JSON (view names + ms). If `refresh_url_scores_v1` is also needed (e.g. URL scores changed), prompt the user — it takes ~5 min and requires their confirmation before running.
+Report the refresh result JSON (view names + ms). If `refresh_url_scores_v1` is also needed (e.g. URL scores changed), stop and ask first: it refreshes `mv_url_scores_enriched_v4` non-concurrently and **locks the live dashboard for every client** for several minutes — run it only with explicit go-ahead, ideally off-hours.
 
 ---
 
@@ -902,8 +931,8 @@ Health
 
 Actions taken
   Matviews refreshed:    X times (Phase 1 + Phase 7 if changes made)
-  Candidates resolved:   X (Phase 1 deterministic: X · Phase 2 LLM: X)
-  Human aliases written: X
+  Canonicalised items:   X rewritten (exact: X · alias: X · title: X · grouped: X) · matched share X%
+  Judgement aliases:     X (verified same/edition calls only)
   Candidates ignored:    X
   Brands enriched:       X (GPT: X · Gemini: X)
   Entities enriched:     X (GPT: X · Gemini: X)
