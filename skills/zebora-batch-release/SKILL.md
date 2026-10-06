@@ -10,7 +10,7 @@ description: Monthly batch release runbook — the end-to-end SOP for taking a b
 One ordered process for a brand's monthly batch: **capture → score → check → review → refresh → PR
 module → summaries → readiness → go-live → report email**.
 
-Status: **draft v0.3 (6 Oct 2026)**, written from the September 2026 releases of Big Potato UK,
+Status: **draft v0.4 (6 Oct 2026)**, written from the September 2026 releases of Big Potato UK,
 Big Potato US and Nationwide.
 
 ## How the process is held together
@@ -19,7 +19,7 @@ Four pieces, each with one job. Nothing here needs a schema change.
 
 | Piece | Its one job | Where it lives | State |
 |---|---|---|---|
-| **Scripts** | Run the checks and the mechanical steps the same way every time | `brand-score-pipeline/scripts/batch_release/` | Setup check, weekly check and settings command built; the rest planned |
+| **Scripts** | Run the checks and the mechanical steps the same way every time | `brand-score-pipeline/scripts/batch_release/` | Setup check, weekly check, settings, readiness and go-live built; month-end chain and email check planned |
 | **Brand settings** | What is different about this brand, decided once | `brands.config.release` | Built; saved for Big Potato UK, Big Potato US and Nationwide |
 | **Release record** | Which stages have passed for this batch, when, and the key figures | `batches.batch_metadata.release` | Built; written by the checks with `--record` |
 | **This runbook** | The order, what each gate means, and what a human decides | this file | Draft |
@@ -40,8 +40,9 @@ and `--record` (save the result to the batch's release record — its only write
 | 2 | `poetry run python scripts/batch_release/weekly_check.py --all-pool` (or `--batch-id <id>`) | Built |
 | any | `poetry run python scripts/batch_release/brand_settings.py --brand-id <id>` — show a brand's settings; `--file <json> --apply --backup-dir <dir>` saves them (**writes**) | Built |
 | 5–7 | `release_chain.py --batch-id <id>` — refresh → PR module → summaries, stopping at the first failed gate (**writes**) | Planned (step 4) |
-| 8 | `readiness.py --batch-id <id>` | Planned (step 3) |
-| 9 | `go_live.py --batch-id <id>` — refuses unless Stage 8 is recorded as passed (**writes**) | Planned (step 3) |
+| 8 | `poetry run python scripts/batch_release/readiness.py --batch-id <id> --record` | Built |
+| 8 | `readiness.py --batch-id <id> --waive "<line>" --reason "<why>" --by "<name>"` — accept one failing line (**writes** the release record) | Built |
+| 9 | `poetry run python scripts/batch_release/go_live.py --batch-id <id>` — dry run; `--apply --by "<name>"` switches (**writes**); `--rollback --apply` reverses it | Built |
 | 10 | `report_email_check.py --batch-id <id>` — campaign snapshot against the live dashboard | Planned |
 
 `--all-pool` means every batch the weekly pool is currently capturing into.
@@ -91,6 +92,7 @@ cannot be silently ignored. Keys, with Nationwide as the example:
 | `kept_brands` | Brands kept that the rules might exclude | MoneyHelper, Virgin Money |
 | `canonicaliser_exclude` | Names the canonicaliser must leave alone (Big Potato US: Duel) | — |
 | `new_brand_min_mentions` | Mentions in a month before a new brand row is created | 10 |
+| `pool_runs_expected` | Weekly pool runs that make up a month (default 4) | — |
 | `fix_misses_by` | `edit_stored_rows` or `rescore` | `edit_stored_rows` |
 | `versions.dashboard`, `versions.reporting` | The setup check fails when a batch differs | `v2` / `v2` |
 | `pr.value_percentile`, `pr.node_limit` | PR crawl settings | 0.6 / 1000 |
@@ -110,8 +112,8 @@ Talking Futures, Smart Energy GB, TransUnion.
 ## Release record (`batches.batch_metadata.release`)
 
 One entry per stage, latest result only: `{status, at, by, failed, warned, figures}`. The checks
-write `setup_check` and `weekly_check` when run with `--record`; the later scripts will add their
-own stages. The record carries its batch id, because creating a batch from last month's copies
+write `setup_check`, `weekly_check` and `readiness` when run with `--record`; go-live writes
+`go_live` with the values it replaced. Waivers sit beside the stages: `{reason, by, at}` per line. The record carries its batch id, because creating a batch from last month's copies
 `batch_metadata`: a record with another batch's id is discarded. Scripts write it; the readiness and go-live
 commands read it. It makes a release resumable (anyone can see where a batch is) and auditable
 (what was decided and when). The go-live rollback record is stored here too.
@@ -251,30 +253,41 @@ summaries. Confirm 12 active summaries plus the sentiment insights, on the newes
 
 ## Stage 8 · Readiness gate
 
-One table; go-live is blocked until every line passes. It is the weekly check with warnings
-promoted to failures, plus the release-only lines:
+`readiness.py --batch-id <id> --record`. One table; go-live is blocked while any line fails.
 
-| Area | Blocking line |
-|---|---|
-| Capture | Expected number of pool runs completed |
-| Scoring | Every output scored; one scoring model, or a recorded decision to accept a mix |
-| Visibility | Unmatched mentions under 5%; no target-brand exceptions outstanding |
-| URLs | Dashboard view equals the gated source count; under 5% unclassified; no junk citations |
-| PR | `compute_pr_batch_readiness` blocking checks pass (coverage excepted) |
-| Summaries | 12 active summaries generated after the last data change |
-| Config | Stage 0 passes |
+| Area | Line | Fails when |
+|---|---|---|
+| Config | Brand settings, Batch, Model weightings, Category weights, Tag weights, Versions, Prompt context | As Stage 0 |
+| Capture | Pool runs | Fewer completed runs than `pool_runs_expected`, or an LLM surface under 90% of its prompts |
+| Scoring | Scoring, Model labels, Scoring model, Metrics views | Anything unscored; a bad label; mixed scoring models or context versions; views behind the scores |
+| Visibility | Unmatched names, Target brand, Visibility figures | Unmatched above 5%; target-brand exceptions above 2% of answers; visibility above 100% |
+| URLs | URL view, URL labels, Junk citations | Dashboard view differs from the source; over 5% unclassified; thumbnail rows present |
+| PR | PR module | A blocking `compute_pr_batch_readiness` check is incomplete (coverage excepted); skipped when the module is off |
+| Summaries | Summaries | Fewer than 12 active, or written before the latest scoring |
+
+Under-extraction and New aliases only ever warn.
+
+**Waivers.** When a line fails for a reason a person has accepted (for example, mixed scoring
+models in the month the model changed), waive it: `--waive "<line>" --reason "<why>" --by
+"<name>"`. The waiver is saved in the release record and the line shows as a warning carrying the
+reason. Waive a line, never the gate.
 
 ## Stage 9 · Go-live
 
-After the gate passes and the owner approves:
+`go_live.py --batch-id <id>` shows what would change. With `--apply --by "<name>"`, after the
+owner approves, it:
 
-1. Save the current values (the brand's live batch, the new batch's flags) as the rollback record.
-2. `batches`: `is_approved = now()`, `is_active = true`, versions confirmed.
-3. `brands.batch_id` → the new batch.
-4. Open the dashboard and the PR page as a logged-in user: this fills the coverage figure and is
-   the final visual check.
+1. Refuses unless readiness has a recorded result from the last 24 hours with no failing line.
+2. Saves the values it is about to replace (the brand's live batch, the batch's approval and
+   active flags) in the release record.
+3. Sets `batches.is_approved` (if blank) and `is_active = true`, and points `brands.batch_id` at
+   the batch — in one transaction.
 
-Rollback is step 3 reversed, using the saved record.
+Then open the dashboard and the PR page as a logged-in user: this fills the PR coverage figure and
+is the final visual check.
+
+`--rollback --apply --by "<name>"` restores the saved values. It refuses if a later switch has
+happened.
 
 ## Stage 10 · Monthly report email
 
@@ -316,7 +329,9 @@ Each of these removes a check or a manual step from this runbook.
    run and post the tables to the team channel.
 2. **Brand settings and the release record** — built (6 Oct 2026). Next: fill the remaining
    brands' settings.
-3. **Readiness and go-live commands.**
+3. **Readiness and go-live commands** — built (6 Oct 2026). The three September batches pass the
+   gate as they stand; the go-live switch has been exercised in a rolled-back transaction but not
+   yet used for a real release.
 4. **Month-end chain** on the workers, so nothing depends on a laptop or a 30-minute session limit.
 
 ## Guardrails
