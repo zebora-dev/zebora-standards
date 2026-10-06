@@ -10,7 +10,7 @@ description: Monthly batch release runbook — the end-to-end SOP for taking a b
 One ordered process for a brand's monthly batch: **capture → score → check → review → refresh → PR
 module → summaries → readiness → go-live → report email**.
 
-Status: **draft v0.2 (6 Oct 2026)**, written from the September 2026 releases of Big Potato UK,
+Status: **draft v0.3 (6 Oct 2026)**, written from the September 2026 releases of Big Potato UK,
 Big Potato US and Nationwide.
 
 ## How the process is held together
@@ -19,9 +19,9 @@ Four pieces, each with one job. Nothing here needs a schema change.
 
 | Piece | Its one job | Where it lives | State |
 |---|---|---|---|
-| **Scripts** | Run the checks and the mechanical steps the same way every time | `brand-score-pipeline/scripts/batch_release/` | Setup check and weekly check built; the rest planned |
-| **Brand settings** | What is different about this brand, decided once | `brands.config.release` | Planned (step 2) |
-| **Release record** | Which stages have passed for this batch, when, and the key figures | `batches.batch_metadata.release` | Planned (step 2) |
+| **Scripts** | Run the checks and the mechanical steps the same way every time | `brand-score-pipeline/scripts/batch_release/` | Setup check, weekly check and settings command built; the rest planned |
+| **Brand settings** | What is different about this brand, decided once | `brands.config.release` | Built; saved for Big Potato UK, Big Potato US and Nationwide |
+| **Release record** | Which stages have passed for this batch, when, and the key figures | `batches.batch_metadata.release` | Built; written by the checks with `--record` |
 | **This runbook** | The order, what each gate means, and what a human decides | this file | Draft |
 
 The rule for what goes where: if a step needs no judgement it is a script; if an answer is the same
@@ -31,12 +31,14 @@ belongs in this document.
 ## Commands
 
 All run from the `brand-score-pipeline` repo root, on an up-to-date `main`. All are read-only unless
-marked. Each exits 1 when a check fails, so it can gate a scheduled run, and takes `--json`.
+marked. Each check exits 1 when a line fails, so it can gate a scheduled run, and takes `--json`
+and `--record` (save the result to the batch's release record — its only write).
 
 | Stage | Command | State |
 |---|---|---|
 | 0 | `poetry run python scripts/batch_release/preflight.py --all-pool` (or `--batch-id <id>`) | Built |
 | 2 | `poetry run python scripts/batch_release/weekly_check.py --all-pool` (or `--batch-id <id>`) | Built |
+| any | `poetry run python scripts/batch_release/brand_settings.py --brand-id <id>` — show a brand's settings; `--file <json> --apply --backup-dir <dir>` saves them (**writes**) | Built |
 | 5–7 | `release_chain.py --batch-id <id>` — refresh → PR module → summaries, stopping at the first failed gate (**writes**) | Planned (step 4) |
 | 8 | `readiness.py --batch-id <id>` | Planned (step 3) |
 | 9 | `go_live.py --batch-id <id>` — refuses unless Stage 8 is recorded as passed (**writes**) | Planned (step 3) |
@@ -76,29 +78,41 @@ marked. Each exits 1 when a check fails, so it can gate a scheduled run, and tak
 
 ---
 
-## Brand settings (`brands.config.release`) — planned
+## Brand settings (`brands.config.release`)
 
-Read at the start of every run. Proposed keys, with Nationwide as the example:
+Read at the start of every run. Every key is optional and unknown keys are rejected, so a typo
+cannot be silently ignored. Keys, with Nationwide as the example:
 
 | Key | Meaning | Nationwide |
 |---|---|---|
 | `entity_model` | `brands_only` or `brands_and_products`. Brand-only skips the canonicaliser (VEC Phase 4) | `brands_only` |
 | `strict_titles` | Use strict title matching in the canonicaliser (needed for Vuse devices) | — |
 | `separate_brands` | Subsidiaries that stay their own brand instead of rolling into the parent | The Mortgage Works, Virgin Money |
-| `kept_brands` | Brands kept that the rules might exclude | MoneyHelper |
+| `kept_brands` | Brands kept that the rules might exclude | MoneyHelper, Virgin Money |
+| `canonicaliser_exclude` | Names the canonicaliser must leave alone (Big Potato US: Duel) | — |
 | `new_brand_min_mentions` | Mentions in a month before a new brand row is created | 10 |
 | `fix_misses_by` | `edit_stored_rows` or `rescore` | `edit_stored_rows` |
-| `versions` | Dashboard and reporting version | `v2` / `v2` |
+| `versions.dashboard`, `versions.reporting` | The setup check fails when a batch differs | `v2` / `v2` |
 | `pr.value_percentile`, `pr.node_limit` | PR crawl settings | 0.6 / 1000 |
 | `checks.accepted_aliases` | Aliases reviewed and kept, so the weekly check stops raising them | Clydesdale Bank → Virgin Money, … |
-| `checks.under_extraction` | `off` where list answers are advice, not brands | to decide |
-| `report_email` | Recipients list, internal copy mode, standing intro text | — |
+| `checks.under_extraction` | `false` where list answers are advice, not brands | `true` (to decide) |
+| `notes` | Free text for anything that does not fit a key | — |
 
-Until this exists the answers live in the session memory files.
+What the checks do with them today: accepted aliases are not raised again; the under-extraction
+line can be switched off; a parent named only to describe a separate brand ("The Mortgage Works, a
+specialist arm of Nationwide") is not a missed mention; versions are enforced. The other keys are
+read by a person or by `zebora-scoring-vec` until the later scripts are built. Report-email
+settings are not included yet.
 
-## Release record (`batches.batch_metadata.release`) — planned
+A brand with no settings gets the defaults and a warning in the setup check. Still to fill: Vuse,
+Talking Futures, Smart Energy GB, TransUnion.
 
-One entry per stage: `{status, at, by, figures}`. Scripts write it; the readiness and go-live
+## Release record (`batches.batch_metadata.release`)
+
+One entry per stage, latest result only: `{status, at, by, failed, warned, figures}`. The checks
+write `setup_check` and `weekly_check` when run with `--record`; the later scripts will add their
+own stages. The record carries its batch id, because creating a batch from last month's copies
+`batch_metadata`: a record with another batch's id is discarded. Scripts write it; the readiness and go-live
 commands read it. It makes a release resumable (anyone can see where a batch is) and auditable
 (what was decided and when). The go-live rollback record is stored here too.
 
@@ -300,8 +314,8 @@ Each of these removes a check or a manual step from this runbook.
 
 1. **Setup check and weekly check** — built (6 Oct 2026). Next: schedule both after the Monday pool
    run and post the tables to the team channel.
-2. **Brand settings and the release record** — fill the settings for the September brands from the
-   decisions already made; scripts start writing the record.
+2. **Brand settings and the release record** — built (6 Oct 2026). Next: fill the remaining
+   brands' settings.
 3. **Readiness and go-live commands.**
 4. **Month-end chain** on the workers, so nothing depends on a laptop or a 30-minute session limit.
 
