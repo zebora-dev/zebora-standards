@@ -10,7 +10,7 @@ description: Monthly batch release runbook — the end-to-end SOP for taking a b
 One ordered process for a brand's monthly batch: **capture → score → check → review → refresh → PR
 module → summaries → readiness → go-live → report email**.
 
-Status: **draft v0.6 (6 Oct 2026)**, written from the September 2026 releases of Big Potato UK,
+Status: **draft v0.7 (6 Oct 2026)**, written from the September 2026 releases of Big Potato UK,
 Big Potato US and Nationwide.
 
 ## How the process is held together
@@ -38,6 +38,7 @@ and `--record` (save the result to the batch's release record — its only write
 |---|---|---|
 | 0 | `poetry run python scripts/batch_release/preflight.py --all-pool` (or `--batch-id <id>`) | Built |
 | 2 | `poetry run python scripts/batch_release/weekly_check.py --all-pool` (or `--batch-id <id>`) | Built |
+| any | `poetry run python scripts/batch_release/brand_settings.py --list` — every active brand's engagement and pool enrolment | Built |
 | any | `poetry run python scripts/batch_release/brand_settings.py --brand-id <id>` — show a brand's settings; `--file <json> --apply --backup-dir <dir>` saves them (**writes**) | Built |
 | 5–8 | `poetry run python scripts/batch_release/release_chain.py --batch-id <id>` — prints the plan; `--apply` runs entity refresh → URL refresh → PR facts → PR module → summaries → readiness, stopping at the first failure (**writes**). Also the `batch-release-chain` deployment | Built |
 | 8 | `poetry run python scripts/batch_release/readiness.py --batch-id <id> --record` | Built |
@@ -86,6 +87,10 @@ cannot be silently ignored. Keys, with Nationwide as the example:
 
 | Key | Meaning | Nationwide |
 |---|---|---|
+| `engagement.status` | `ongoing`, `one_off`, `demo` or `paused` — does the brand get a batch each month? | `demo` |
+| `engagement.capture` | `scheduled` (pool runs start on the cron, workers expected online), `manual` (pool runs started by hand) or `none` | `none` |
+| `engagement.release` | `full`, `dashboard_only` (no report email) or `none` | `dashboard_only` |
+| `engagement.note` | Why, and until when | — |
 | `entity_model` | `brands_only` or `brands_and_products`. Brand-only skips the canonicaliser (VEC Phase 4) | `brands_only` |
 | `strict_titles` | Use strict title matching in the canonicaliser (needed for Vuse devices) | — |
 | `separate_brands` | Subsidiaries that stay their own brand instead of rolling into the parent | The Mortgage Works, Virgin Money |
@@ -106,8 +111,17 @@ specialist arm of Nationwide") is not a missed mention; versions are enforced. T
 read by a person or by `zebora-scoring-vec` until the later scripts are built. Report-email
 settings are not included yet.
 
-A brand with no settings gets the defaults and a warning in the setup check. Still to fill: Vuse,
-Talking Futures, Smart Energy GB, TransUnion.
+**Engagement decides who is in the process at all.** Only an ongoing brand with capture
+`scheduled` or `manual` belongs in the weekly pool. The setup check fails when a brand that is not
+ongoing is still enrolled (its next capture would land in an old, possibly live, batch) or an
+ongoing one is not; it does not ask a one-off or demo brand for a current-month batch; and it
+skips the worker lines unless capture is `scheduled`. `brand_settings.py --list` shows every
+active brand's engagement against its pool enrolment — read it at the start of each month.
+
+State on 6 Oct 2026: Big Potato UK, Big Potato US, Vuse and Talking Futures are ongoing with
+manual capture; Nationwide is a demo; Smart Energy GB and TransUnion are one-offs. The other
+active brands have no engagement set and are not enrolled. Vuse and Talking Futures have only
+their engagement and one or two notes saved; the rest of their settings are defaults.
 
 ## Release record (`batches.batch_metadata.release`)
 
@@ -158,7 +172,8 @@ What should happen with no manual steps:
 3. Each saved output is scored: visibility, sentiment, URLs and output QA.
 4. The pool run is marked completed.
 
-**State on 6 Oct 2026:** scoring is not automatic (every September run had `score_on_complete`
+**State on 6 Oct 2026:** capture is manual for now (pool runs are started by hand, so the ongoing
+brands are set to capture `manual`), scoring is not automatic (every September run had `score_on_complete`
 off), the capture and scoring workers are stopped, and two identical insert triggers on
 `prompts_outputs` post every new output to a scoring address on Railway. Automatic scoring is being
 rebuilt alongside a change of scoring model and may start from the second week of October.
