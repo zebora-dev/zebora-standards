@@ -10,7 +10,7 @@ description: Monthly batch release runbook — the end-to-end SOP for taking a b
 One ordered process for a brand's monthly batch: **capture → score → check → review → refresh → PR
 module → summaries → readiness → go-live → report email**.
 
-Status: **draft v0.4 (6 Oct 2026)**, written from the September 2026 releases of Big Potato UK,
+Status: **draft v0.5 (6 Oct 2026)**, written from the September 2026 releases of Big Potato UK,
 Big Potato US and Nationwide.
 
 ## How the process is held together
@@ -19,7 +19,7 @@ Four pieces, each with one job. Nothing here needs a schema change.
 
 | Piece | Its one job | Where it lives | State |
 |---|---|---|---|
-| **Scripts** | Run the checks and the mechanical steps the same way every time | `brand-score-pipeline/scripts/batch_release/` | Setup check, weekly check, settings, readiness and go-live built; month-end chain and email check planned |
+| **Scripts** | Run the checks and the mechanical steps the same way every time | `brand-score-pipeline/scripts/batch_release/` | Setup check, weekly check, settings, readiness, go-live and the month-end chain built; email check planned |
 | **Brand settings** | What is different about this brand, decided once | `brands.config.release` | Built; saved for Big Potato UK, Big Potato US and Nationwide |
 | **Release record** | Which stages have passed for this batch, when, and the key figures | `batches.batch_metadata.release` | Built; written by the checks with `--record` |
 | **This runbook** | The order, what each gate means, and what a human decides | this file | Draft |
@@ -39,7 +39,7 @@ and `--record` (save the result to the batch's release record — its only write
 | 0 | `poetry run python scripts/batch_release/preflight.py --all-pool` (or `--batch-id <id>`) | Built |
 | 2 | `poetry run python scripts/batch_release/weekly_check.py --all-pool` (or `--batch-id <id>`) | Built |
 | any | `poetry run python scripts/batch_release/brand_settings.py --brand-id <id>` — show a brand's settings; `--file <json> --apply --backup-dir <dir>` saves them (**writes**) | Built |
-| 5–7 | `release_chain.py --batch-id <id>` — refresh → PR module → summaries, stopping at the first failed gate (**writes**) | Planned (step 4) |
+| 5–8 | `poetry run python scripts/batch_release/release_chain.py --batch-id <id>` — prints the plan; `--apply` runs entity refresh → URL refresh → PR facts → PR module → summaries → readiness, stopping at the first failure (**writes**). Also the `batch-release-chain` deployment | Built |
 | 8 | `poetry run python scripts/batch_release/readiness.py --batch-id <id> --record` | Built |
 | 8 | `readiness.py --batch-id <id> --waive "<line>" --reason "<why>" --by "<name>"` — accept one failing line (**writes** the release record) | Built |
 | 9 | `poetry run python scripts/batch_release/go_live.py --batch-id <id>` — dry run; `--apply --by "<name>"` switches (**writes**); `--rollback --apply` reverses it | Built |
@@ -225,31 +225,35 @@ Run `/zebora-scoring-url <batch_id>`, plus:
 
 No refresh here.
 
-## Stage 5 · Refresh (once, in this order)
+## Stages 5–7 · The month-end chain
 
-1. `refresh_entity_metrics_v2(<batch>)` — about 3 minutes, no lock.
-2. `refresh_url_scores_v1(<batch>)` — about 15 minutes, **locks the live dashboard**. Announce it,
-   and do every batch in the release back to back in one window.
-3. `refresh_pr_scores(<batch>)` — seconds. **Must run before the PR module**, or the crawl finds
-   nothing to do.
+`release_chain.py --batch-id <id> --apply` runs Stages 5 to 8 in order for one batch and stops at
+the first step that fails. Each step's result and duration is saved in the release record, so a
+stopped chain shows where it got to.
 
-## Stage 6 · PR module
+| Step | What it runs | Notes |
+|---|---|---|
+| `entity_refresh` | `refresh_entity_metrics_v2` | About 3 minutes, no lock. Retries when another refresh holds the lock |
+| `url_refresh` | `refresh_url_scores_v1` | About 15 minutes; **locks the live dashboard for every client** |
+| `pr_scores` | `refresh_pr_scores` | Seconds. Before the PR module, or the crawl finds nothing to do |
+| `pr_module` | crawl → status refresh → analysis without crawl | Skipped when the module is off. Crawl percentile and `node_limit` come from the brand settings (default 0.6 / 1000; the code default of 3 leaves a batch 50–80% scraped). A crawl that scrapes under 30% of its pages is run again once, then fails |
+| `summaries` | `batch-summary` flow | Last data step. Fails if any summary task fails |
+| `readiness` | Stage 8, recorded | What go-live reads |
 
-1. `pr_pipeline_for_batch(batch_id, brand_name, brand_id, value_percentile, node_limit)` with the
-   brand's settings. The default `node_limit=3` only crawls pages cited under the top three
-   messages and leaves a batch at 50–80% of citation value scraped; use 1000.
-2. Check the crawl. If fewer than 80% of the listed pages were attempted it failed, whatever the
-   run status says; run it again.
-3. `pr_status_refresh_for_batch`, then the pipeline again with `--no-crawl`.
-4. `compute_pr_batch_readiness(<batch>)` — every blocking check must pass except "Brand presence
-   coverage", which fills in the first time a logged-in user opens the PR page.
+**The dashboard lock is a person's call.** Without `--allow-dashboard-lock` the chain stops before
+`url_refresh`. Announce the lock, then resume with `--from url_refresh --allow-dashboard-lock`.
+Release several batches by running their chains one after another in the same window.
 
-Run brands that share many URLs one after another, not in parallel.
+**Resuming.** `--from <step>` continues from a step; `--only a,b` runs the named steps in chain
+order. If anything in Stages 3–4 is redone after the chain, run it again from `entity_refresh` so
+the summaries are rewritten.
 
-## Stage 7 · Summaries
+**Where to run it.** The chain takes an hour or more. Run it as the `batch-release-chain`
+deployment on the workers, or detached (`nohup`) with `PREFECT_API_URL` reachable; a Claude Code
+background job is stopped after 30 minutes. Run brands that share many URLs one after another.
 
-Run the `batch-summary` flow **once, last**. If anything in Stages 3–6 is redone, redo the
-summaries. Confirm 12 active summaries plus the sentiment insights, on the newest version.
+After it finishes, confirm 12 active summaries plus the sentiment insights (the readiness table
+shows this), and that "Brand presence coverage" fills in once a logged-in user opens the PR page.
 
 ## Stage 8 · Readiness gate
 
@@ -332,7 +336,12 @@ Each of these removes a check or a manual step from this runbook.
 3. **Readiness and go-live commands** — built (6 Oct 2026). The three September batches pass the
    gate as they stand; the go-live switch has been exercised in a rolled-back transaction but not
    yet used for a real release.
-4. **Month-end chain** on the workers, so nothing depends on a laptop or a 30-minute session limit.
+4. **Month-end chain** — built (6 Oct 2026) and registered as the `batch-release-chain`
+   deployment. The refresh, PR-facts and readiness steps have been run for real; the URL refresh,
+   PR module and summaries steps call the same functions used by hand in September but have not
+   yet run through the chain. The deployment exists once the workers are redeployed and
+   `register_deployments` is run.
+5. **Report-email check** — campaign snapshot against the live dashboard (planned).
 
 ## Guardrails
 
