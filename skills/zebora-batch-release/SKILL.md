@@ -10,7 +10,7 @@ description: Monthly batch release runbook — the end-to-end SOP for taking a b
 One ordered process for a brand's monthly batch: **capture → score → check → review → refresh → PR
 module → summaries → readiness → go-live → report email**.
 
-Status: **draft v0.5 (6 Oct 2026)**, written from the September 2026 releases of Big Potato UK,
+Status: **draft v0.6 (6 Oct 2026)**, written from the September 2026 releases of Big Potato UK,
 Big Potato US and Nationwide.
 
 ## How the process is held together
@@ -19,7 +19,7 @@ Four pieces, each with one job. Nothing here needs a schema change.
 
 | Piece | Its one job | Where it lives | State |
 |---|---|---|---|
-| **Scripts** | Run the checks and the mechanical steps the same way every time | `brand-score-pipeline/scripts/batch_release/` | Setup check, weekly check, settings, readiness, go-live and the month-end chain built; email check planned |
+| **Scripts** | Run the checks and the mechanical steps the same way every time | `brand-score-pipeline/scripts/batch_release/` | Setup check, weekly check, settings, readiness, go-live, the month-end chain and the report-email check built |
 | **Brand settings** | What is different about this brand, decided once | `brands.config.release` | Built; saved for Big Potato UK, Big Potato US and Nationwide |
 | **Release record** | Which stages have passed for this batch, when, and the key figures | `batches.batch_metadata.release` | Built; written by the checks with `--record` |
 | **This runbook** | The order, what each gate means, and what a human decides | this file | Draft |
@@ -43,7 +43,7 @@ and `--record` (save the result to the batch's release record — its only write
 | 8 | `poetry run python scripts/batch_release/readiness.py --batch-id <id> --record` | Built |
 | 8 | `readiness.py --batch-id <id> --waive "<line>" --reason "<why>" --by "<name>"` — accept one failing line (**writes** the release record) | Built |
 | 9 | `poetry run python scripts/batch_release/go_live.py --batch-id <id>` — dry run; `--apply --by "<name>"` switches (**writes**); `--rollback --apply` reverses it | Built |
-| 10 | `report_email_check.py --batch-id <id>` — campaign snapshot against the live dashboard | Planned |
+| 10 | `poetry run python scripts/batch_release/report_email_check.py --batch-id <id>` — campaign snapshot against the live dashboard; run before sending and again after | Built |
 
 `--all-pool` means every batch the weekly pool is currently capturing into.
 
@@ -298,13 +298,26 @@ happened.
 Only after go-live and the visual check.
 
 1. Create the report email campaign for the batch in the admin app (`report_email_campaigns`). The
-   figures in the email are **taken when the campaign is created**, so create it after the final
-   refresh, never before.
-2. Check the snapshot against the dashboard: brand health, visibility, share of voice, rank.
-3. Fill in the intro, highlights and the month's product updates.
-4. Confirm the recipients (client and internal) and the internal copy mode.
-5. Send, on approval. Delivery is through Resend; confirm every recipient shows `sent` and check
-   `email_log` for errors.
+   figures in the email are **taken when the campaign is created**, so create it after the chain
+   has finished, never before.
+2. Fill in the intro, highlights and the month's product updates.
+3. Run `report_email_check.py --batch-id <id>`. Send only when it passes:
+
+   | Line | Fails when |
+   |---|---|
+   | Campaign | No campaign exists for the batch |
+   | Batch is live | The batch is not the brand's live batch |
+   | Figures | Visibility, share of voice or rank in the email differ from the dashboard — delete the campaign and create it again |
+   | Snapshot age | Warns when the campaign was created before the latest recorded refresh or summaries |
+   | Intro | Warns when empty |
+   | Delivery | After sending: any recipient not delivered, or no client recipients |
+
+   Brand health and sentiment are worked out in the dashboard app, so the check says it has not
+   compared them: read those two against the dashboard by eye.
+4. Confirm the recipients and the internal copy mode in the admin app (recipients are only written
+   to the database at send).
+5. Send, on approval. Then run the check again with `--record` to confirm delivery and close the
+   release record.
 
 ---
 
@@ -341,7 +354,11 @@ Each of these removes a check or a manual step from this runbook.
    PR module and summaries steps call the same functions used by hand in September but have not
    yet run through the chain. The deployment exists once the workers are redeployed and
    `register_deployments` is run.
-5. **Report-email check** — campaign snapshot against the live dashboard (planned).
+5. **Report-email check** — built (6 Oct 2026). The four campaigns sent on 5 October all match
+   the dashboard.
+6. **Still to do:** schedule the setup and weekly checks after the Monday pool run and post the
+   tables to the team channel; fill the remaining brands' settings; add brand health and sentiment
+   to the report-email check once their formulas are available outside the dashboard app.
 
 ## Guardrails
 
