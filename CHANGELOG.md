@@ -6,6 +6,12 @@ and this project adheres to [Semantic Versioning](https://semver.org).
 
 ## [Unreleased]
 
+### Added
+
+- **`skills/zebora-batch-release`** (draft v0.2) — monthly batch release runbook: one ordered,
+  gated process from weekly pool capture to go-live and the monthly report email, written from the
+  September 2026 releases. Lists the gaps to close before it can be automated.
+
 ### Changed
 
 - **`skills/zebora-scoring-vec` Phase 4** — replaced alias-writing resolution with a
