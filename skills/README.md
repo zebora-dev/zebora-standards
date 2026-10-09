@@ -13,6 +13,7 @@ live here so they are versioned, reviewed via PR, and shared across the team.
 skills/
   <skill-name>/
     SKILL.md        # frontmatter (name, description) + body
+    scripts/ references/ examples/ assets/   # optional supporting files
 ```
 
 ## Installing
@@ -44,6 +45,7 @@ Invoke with `/<skill-name> <args>` in Claude Code.
 | `zebora-scoring-vec` | Visibility Entity Checker (VEC) — interactive QA for the visibility scoring pipeline: matview refresh, QA triage, entity review, resolution & canonicalization, enrichment, feedback loop. |
 | `zebora-batch-release` | Monthly batch release runbook — the ordered SOP from weekly capture and automatic scoring through the weekly health check, visibility and URL reviews, refreshes, PR module, summaries, readiness gate, go-live and the monthly report email. Orchestrates the two skills below. |
 | `zebora-scoring-url` | Citation/URL Checker (UCC) — reporting-only QA for the URL scoring pipeline (completeness, cross-path reconciliation, suspect domains, duplication, classification coverage, learned-baseline drift). |
+| `zebora-deck-refresh` | Re-skin and restructure a Google Slides deck into the Zebora brand without changing its copy: brand kit, slide patterns, copy and hand-edit checkers, image recipes, Drive upload/convert workflow. Needs `npm install` + `pip3 install -r requirements.txt` in the skill folder on first use. |
 
 Other pipeline skills (`zebora-ops`, `zebora-batch-report`, …) can be migrated
 here in follow-up PRs.
