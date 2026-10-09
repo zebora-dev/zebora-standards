@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org).
 
 ### Added
 
+- **`skills/zebora-ai-tells`** — migrated from machine-local `~/.claude/skills/`. Scores
+  written content for AI tells (`ai_tells_rubric@0.1.0`, fifteen weighted signals) with a
+  deterministic stdlib script, and produces a scorecard with ranked rewrites. Includes the
+  signal reference and the fix-pattern table.
 - **`skills/zebora-deck-refresh`** — re-skin and restructure an existing Google Slides deck
   into the Zebora brand without changing its copy. Ships the brand kit generator
   (`scripts/brand_assets.js`), pptxgenjs helpers and tokens (`scripts/lib.js`), deck
@@ -15,9 +19,6 @@ and this project adheres to [Semantic Versioning](https://semver.org).
   image recipes (`scripts/image_recipes.py`: tilt, collage, cutout), the Drive
   upload / convert / paste-a-slide workflow, slide patterns, and worked examples from the
   agencies creds deck and the Vitruvian GEO deck (October 2026).
-
-### Added
-
 - **`skills/zebora-batch-release`** (draft v0.7) — monthly batch release runbook: one ordered,
   gated process from weekly pool capture to go-live and the monthly report email, written from the
   September 2026 releases. Lists the gaps to close before it can be automated.
