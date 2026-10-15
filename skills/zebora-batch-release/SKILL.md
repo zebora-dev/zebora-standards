@@ -72,8 +72,10 @@ and `--record` (save the result to the batch's release record — its only write
 - **Refresh rules.** Per-batch `refresh_pr_scores` is safe at any time. `refresh_url_scores_v1` no
   longer locks the dashboard (the 10+ minute v4 rebuild was removed in ZEB-1059; 114 s on Twinkl, reads
   stay available), but it still rebuilds the shared URL views, so run it once per release, at Stage 5.
-  `refresh_entity_metrics_v2` did not finish inside its 20 minute limit on 15 Oct (ZEB-1076): do not
-  promise a time for it, and watch the step. Refresh through the release chain (CLI, the
+  The entity step runs as 27 separate steps with nested loops off (`db/entity_refresh.py`, ZEB-1076):
+  166 s on Twinkl, and about the same for any batch because the matviews rebuild every batch's rows.
+  The single-transaction `refresh_entity_metrics_v2` exceeded its 20 minute limit on 15 Oct, so do not
+  call it directly. Refresh through the release chain (CLI, the
   `batch-release-chain` deployment, or `POST /api/workflows/batch/release`), never through the old
   `POST /api/batches/refresh-views[/v2]` endpoints or `scripts/refresh_entity_metrics_matviews.py`:
   they rebuild every view for every batch and record nothing.
@@ -253,7 +255,7 @@ stopped chain shows where it got to.
 
 | Step | What it runs | Notes |
 |---|---|---|
-| `entity_refresh` | `refresh_entity_metrics_v2` | No dashboard lock. **Currently exceeds its 20 minute limit (ZEB-1076)**; retries when another refresh holds the lock |
+| `entity_refresh` | `refresh_entity_metrics_v2` | 27 steps one at a time (`db/entity_refresh.py`), about 3 minutes (166 s on Twinkl), no dashboard lock; each step has a timeout and one retry, and a failure names the step |
 | `url_refresh` | `refresh_url_scores_v1` | About 2 minutes (114 s on Twinkl); reads stay available. `--allow-dashboard-lock` is no longer needed |
 | `pr_scores` | `refresh_pr_scores` | Seconds. Before the PR module, or the crawl finds nothing to do |
 | `pr_module` | crawl → status refresh → analysis without crawl | Skipped when the module is off. Crawl percentile and `node_limit` come from the brand settings (default 0.6 / 1000; the code default of 3 leaves a batch 50–80% scraped). A crawl that scrapes under 30% of its pages is run again once, then fails |
