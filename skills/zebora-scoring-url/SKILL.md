@@ -96,7 +96,7 @@ Poll the returned workflow id (`GET /api/workflows/<id>/status`) to completion. 
 SET LOCAL statement_timeout = '10min';
 SELECT public.refresh_url_scores_v1('<batch_id>'::uuid);
 ```
-Run via psql (`psql "$DATABASE_URL" -c "SET statement_timeout='10min'; SELECT public.refresh_url_scores_v1('<batch_id>'::uuid);"`), ideally in the background — it commonly takes several minutes. Everything below reads post-refresh data.
+Run via psql (`psql "$DATABASE_URL" -c "SET statement_timeout='10min'; SELECT public.refresh_url_scores_v1('<batch_id>'::uuid);"`), in the background if you like — it takes about 2 minutes (114 s on Twinkl) since ZEB-1059 and does not lock the dashboard (it used to take 10+ minutes because of the v4 rebuild). Everything below reads post-refresh data.
 
 ---
 

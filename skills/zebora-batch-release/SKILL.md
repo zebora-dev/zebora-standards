@@ -69,9 +69,14 @@ and `--record` (save the result to the batch's release record — its only write
 - **Fixed order.** A later stage never runs before an earlier one has passed. Summaries and the
   report email read the final numbers, so they come after every change to the data.
 - **Read the brand settings first**, so settled questions are not asked again.
-- **Refresh rules.** Per-batch `refresh_entity_metrics_v2` and `refresh_pr_scores` are safe at any
-  time. `refresh_url_scores_v1` locks the live dashboard for every client for about 15 minutes per
-  batch: run it once per release, at Stage 5, and say so before starting.
+- **Refresh rules.** Per-batch `refresh_pr_scores` is safe at any time. `refresh_url_scores_v1` no
+  longer locks the dashboard (the 10+ minute v4 rebuild was removed in ZEB-1059; 114 s on Twinkl, reads
+  stay available), but it still rebuilds the shared URL views, so run it once per release, at Stage 5.
+  `refresh_entity_metrics_v2` did not finish inside its 20 minute limit on 15 Oct (ZEB-1076): do not
+  promise a time for it, and watch the step. Refresh through the release chain (CLI, the
+  `batch-release-chain` deployment, or `POST /api/workflows/batch/release`), never through the old
+  `POST /api/batches/refresh-views[/v2]` endpoints or `scripts/refresh_entity_metrics_matviews.py`:
+  they rebuild every view for every batch and record nothing.
 - **Run from current code.** A stale local branch cost three failed PR runs in September.
 - **Long jobs run detached** or on the workers. Background jobs in a Claude Code session stop after
   30 minutes.
@@ -248,10 +253,11 @@ stopped chain shows where it got to.
 
 | Step | What it runs | Notes |
 |---|---|---|
-| `entity_refresh` | `refresh_entity_metrics_v2` | About 3 minutes, no lock. Retries when another refresh holds the lock |
-| `url_refresh` | `refresh_url_scores_v1` | About 15 minutes; **locks the live dashboard for every client** |
+| `entity_refresh` | `refresh_entity_metrics_v2` | No dashboard lock. **Currently exceeds its 20 minute limit (ZEB-1076)**; retries when another refresh holds the lock |
+| `url_refresh` | `refresh_url_scores_v1` | About 2 minutes (114 s on Twinkl); reads stay available. `--allow-dashboard-lock` is no longer needed |
 | `pr_scores` | `refresh_pr_scores` | Seconds. Before the PR module, or the crawl finds nothing to do |
 | `pr_module` | crawl → status refresh → analysis without crawl | Skipped when the module is off. Crawl percentile and `node_limit` come from the brand settings (default 0.6 / 1000; the code default of 3 leaves a batch 50–80% scraped). A crawl that scrapes under 30% of its pages is run again once, then fails |
+| `pr_payloads` | `refresh_pr_payloads` | Stores the PR dashboard results for the batch; after `pr_module` because the crawl and enrichment feed them. 2 to 5 s for most batches, about 60 s for a five-LLM batch. Skipped with the module |
 | `summaries` | `batch-summary` flow | Last data step. Fails if any summary task fails |
 | `readiness` | Stage 8, recorded | What go-live reads |
 
@@ -381,6 +387,6 @@ Each of these removes a check or a manual step from this runbook.
   `zebora-scoring-url`).
 - Never switch a batch live or send a report email without explicit approval in the conversation.
 - Always save a rollback record before go-live.
-- Never run `refresh_url_scores_v1` without saying that it locks the dashboard.
+- Never refresh a batch by calling the old `refresh-views` endpoints or the global matview scripts; use the release chain.
 - Supabase production is the only database; every write is logged in the row's metadata or a dated
   folder under `db_backup/`.

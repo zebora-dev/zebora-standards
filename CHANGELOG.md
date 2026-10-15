@@ -6,6 +6,16 @@ and this project adheres to [Semantic Versioning](https://semver.org).
 
 ## [Unreleased]
 
+### Changed
+
+- **`skills/zebora-batch-release`, `zebora-scoring-vec`, `zebora-scoring-url`** — describe the
+  refresh process as it is after ZEB-1059 and ZEB-1060 (15 October 2026): `refresh_url_scores_v1`
+  takes about 2 minutes and no longer locks the dashboard; the chain has a `pr_payloads` step after
+  `pr_module`; `refresh_entity_metrics_v2` currently exceeds its 20 minute limit (ZEB-1076) so no
+  time is promised for it; refresh through the release chain (CLI, deployment, or
+  `POST /api/workflows/batch/release`), not the deprecated `refresh-views` endpoints or the global
+  matview scripts.
+
 ### Added
 
 - **`skills/zebora-deck-refresh`** — re-skin and restructure an existing Google Slides deck
