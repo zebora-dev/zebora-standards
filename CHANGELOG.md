@@ -12,9 +12,11 @@ and this project adheres to [Semantic Versioning](https://semver.org).
   refresh process as it is after ZEB-1059 and ZEB-1060 (15 October 2026): `refresh_url_scores_v1`
   takes about 2 minutes and no longer locks the dashboard; the chain has a `pr_payloads` step after
   `pr_module`; the entity step runs as 27 separate steps with nested loops off and takes about 3 minutes
-  (the single-transaction `refresh_entity_metrics_v2` exceeded its 20 minute limit, ZEB-1076); refresh through the release chain (CLI, deployment, or
+  (`refresh_entity_metrics_v2` itself now runs with nested loops off, 149 s, ZEB-1081, kept as a
+  fallback); refresh through the release chain (CLI, deployment, or
   `POST /api/workflows/batch/release`), not the deprecated `refresh-views` endpoints or the global
-  matview scripts.
+  matview scripts; the release endpoint returns 503 when no worker is online (workers are stopped
+  between jobs); the PR cache is rebuilt by the chain, a 20 minute sweeper and a nightly audit.
 
 ### Added
 

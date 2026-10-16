@@ -147,11 +147,12 @@ cd /Users/grantsimmonds/Documents/dev/branded-llm/brand_score_pipeline && \
 psql "$DATABASE_URL" -c "SET statement_timeout='12min'; SET lock_timeout='10s'; SELECT public.refresh_entity_metrics_v2('<batch_id>'::uuid);"
 ```
 
-It refreshes the entity/citation matviews without blocking the dashboard, but as one transaction it
-exceeded its 20 minute limit on 15 Oct (ZEB-1076): two `*_by_llm_brand_entity_v2` views hang when the
-planner nests loops. Prefer the release chain's `entity_refresh` step
+It refreshes the entity/citation matviews without blocking the dashboard. Two
+`*_by_llm_brand_entity_v2` views hang when the planner nests loops, so the function now runs with
+`enable_nestloop = off` (149 s, ZEB-1081; before 16 Oct it exceeded its 20 minute limit, ZEB-1076).
+Prefer the release chain's `entity_refresh` step
 (`release_chain.py --batch-id <id> --apply --only entity_refresh`, 27 steps with nested loops off, about
-3 minutes) or `refresh_stepwise.py`. Do **not** use `scripts/refresh_entity_metrics_matviews.py` or
+3 minutes, a per-step timeout and retry, and a failure names the step). Do **not** use `scripts/refresh_entity_metrics_matviews.py` or
 `POST /api/batches/refresh-views[/v2]`: they rebuild every view for every batch and record nothing.
 
 ### 1c — Batch health summary

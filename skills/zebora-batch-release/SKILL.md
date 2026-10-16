@@ -74,11 +74,18 @@ and `--record` (save the result to the batch's release record — its only write
   stay available), but it still rebuilds the shared URL views, so run it once per release, at Stage 5.
   The entity step runs as 27 separate steps with nested loops off (`db/entity_refresh.py`, ZEB-1076):
   166 s on Twinkl, and about the same for any batch because the matviews rebuild every batch's rows.
-  The single-transaction `refresh_entity_metrics_v2` exceeded its 20 minute limit on 15 Oct, so do not
-  call it directly. Refresh through the release chain (CLI, the
-  `batch-release-chain` deployment, or `POST /api/workflows/batch/release`), never through the old
-  `POST /api/batches/refresh-views[/v2]` endpoints or `scripts/refresh_entity_metrics_matviews.py`:
-  they rebuild every view for every batch and record nothing.
+  The single-transaction `refresh_entity_metrics_v2` now also runs with nested loops off (149 s,
+  ZEB-1081; it exceeded its 20 minute limit before 16 Oct), but keep it as a manual fallback only.
+  Refresh through the release chain (CLI, the `batch-release-chain` deployment, or
+  `POST /api/workflows/batch/release`), never through the deprecated
+  `POST /api/batches/refresh-views[/v2]` endpoints or `scripts/refresh_entity_metrics_matviews.py`
+  (removal in ZEB-1083): they rebuild every view for every batch and record nothing.
+- **Workers are stopped between jobs** (ZEB-1087). `POST /api/workflows/batch/release` with
+  `apply` returns 503 when no Prefect worker is online, and the status endpoint reports a Late run
+  as pending. Start one first: `fly machine start <id> -a brand-score-worker`. The plan-only call
+  needs no worker. The release chain's `pr_payloads` step rebuilds the PR dashboard cache; the
+  `pr-payload-sweep` deployment (every 20 min) rebuilds anything marked stale by other PR runs, and
+  `pr-payload-audit` (02:40) checks the cache against the live functions nightly.
 - **Run from current code.** A stale local branch cost three failed PR runs in September.
 - **Long jobs run detached** or on the workers. Background jobs in a Claude Code session stop after
   30 minutes.
@@ -375,8 +382,8 @@ Each of these removes a check or a manual step from this runbook.
 4. **Month-end chain** — built (6 Oct 2026) and registered as the `batch-release-chain`
    deployment. The refresh, PR-facts and readiness steps have been run for real; the URL refresh,
    PR module and summaries steps call the same functions used by hand in September but have not
-   yet run through the chain. The deployment exists once the workers are redeployed and
-   `register_deployments` is run.
+   yet run through the chain. Deploys register any missing Prefect deployment automatically
+   (`scripts/register_missing_deployments.py`, ZEB-1078), and deploy only after CI passes (ZEB-1084).
 5. **Report-email check** — built (6 Oct 2026). The four campaigns sent on 5 October all match
    the dashboard.
 6. **Still to do:** schedule the setup and weekly checks after the Monday pool run and post the
