@@ -103,7 +103,7 @@ Run via psql (`psql "$DATABASE_URL" -c "SET statement_timeout='10min'; SELECT pu
 ## Phase 3 · Dashboard output check ← what users actually see
 The dashboard reads `get_domain_scores_filtered_v5` / `get_url_scores_filtered_v5`. **Do NOT call these functions for QA** — they are `SECURITY DEFINER` and gated by `can_access_batch(p_batch_id)` = `is_super_admin() OR batch.brand_id ∈ current_user_brand_ids()`. A headless psql/MCP connection has no `auth.uid()`, so the gate returns **false → the functions return 0 rows even when data exists** (a 0-row result here is an auth artifact, NOT a data bug).
 
-**The dashboard's true source is `mv_url_scores_enriched_v3`** (what those functions aggregate); it matches the raw active `url_scores`. **Do NOT use `urls_scores_domain` / `url_scores_list` as the proxy — that family is inflated ~1.6× (see Phase 4) and is NOT what the dashboard shows.**
+**The dashboard's true source is `mv_url_scores_enriched_v3`** (what those functions aggregate); it matches the raw active `url_scores`. The `urls_scores_domain` / `url_scores_list` family is a *separate* rollup — **fixed 2026-09-03 (ZEB-539, PR #125)** to apply the same active gates, so it now agrees with the dashboard to within the base view's extra exclusions. It is still not the dashboard's source; Phase 4 reconciles the two as a regression guard.
 
 Batch totals (fast — plain `count(*)` on the mv is indexed by batch_id):
 ```sql
@@ -117,12 +117,12 @@ psql "$DATABASE_URL" -c "SET statement_timeout='4min';
   FROM mv_url_scores_enriched_v3 WHERE batch_id='<batch_id>'
   GROUP BY lower(domain) ORDER BY frequency DESC LIMIT 25;"
 ```
-For a quick top-domain *ranking* the `urls_scores_domain` order is usually similar, but its **counts are inflated** — always verify any surfaced count against the mv/raw (Phase 4b) before reporting it. If `mv_url_scores_enriched_v3` is empty for the batch, THAT is the real "refresh didn't run" signal. (`can_access_batch(<batch_id>)` is false headlessly, so the live dashboard view itself can only be confirmed by an authenticated user via the API.)
+For a quick top-domain *ranking* `urls_scores_domain` is usable, and since the ZEB-539 fix its counts should track the mv closely — still verify any surfaced count against the mv/raw (Phase 4b) before reporting it, as the reconciliation is the regression guard for that fix. If `mv_url_scores_enriched_v3` is empty for the batch, THAT is the real "refresh didn't run" signal. (`can_access_batch(<batch_id>)` is false headlessly, so the live dashboard view itself can only be confirmed by an authenticated user via the API.)
 
 ---
 
 ## Phase 4 · Cross-path reconciliation ← THE important check
-There are **two rollup paths and they can disagree**. Reconcile the DASHBOARD source against the raw truth, and treat `urls_scores_domain` as a *separate, historically-inflated* rollup — never as ground truth.
+There are **two rollup paths**. Reconcile the DASHBOARD source against the raw truth, and check the `urls_scores_domain` family against both. The family was **inflated ~1.4–1.6× until 2026-09-03**, when ZEB-539 (PR #125) added the missing `u.active`/`po.active`/`p.active` gates (the old ones sat in non-filtering LEFT JOIN ON clauses). It should now reconcile — a renewed divergence means the fix regressed or a new ungated path appeared.
 
 **4a — Dashboard vs raw (must match, ± small exclusion delta):**
 ```sql
@@ -131,7 +131,7 @@ SELECT (SELECT count(*) FROM url_scores WHERE batch_id='<batch_id>' AND active) 
        (SELECT SUM(frequency) FROM urls_scores_domain WHERE batch_id='<batch_id>') AS urls_scores_domain_family;
 ```
 - `dashboard_mv` should ≈ `raw_active` (differ only by the documented exclusions — `url_scores_base` drops `images.openai.com` + brand-pillar categories). This is what the dashboard (`get_*_filtered_v5` → `mv_url_scores_enriched_v3`) actually shows.
-- **`urls_scores_domain_family` is inflated** — observed **11,245 vs ~6,700–7,000** (~1.6×) on batch 3110a4d0. **Flag the ratio; do NOT treat this family as the dashboard.** (The `url_scores_list`/`urls_scores_domain`/`urls_scores_domain_type` trio agree *with each other* but not with the dashboard — reconciling them against each other is a false pass.)
+- **`urls_scores_domain_family` should now ≈ `raw_active`** (post-ZEB-539). Expected residual: the family runs slightly HIGH of `url_scores_base` because it does not apply the base's `images.openai.com` + brand-pillar exclusions (observed +206/+191 on the BP Aug batches, ~0.6%). **A ratio meaningfully above ~1.01 is a regression of ZEB-539 — flag it.** Historical context: before the fix the family ran 1.39–1.6× (11,245 vs ~7,000 on batch 3110a4d0; 41,730 vs 29,100 on BP-UK Aug), so any pre-2026-09-03 number quoted from this family is inflated. Reconciling the family trio only against each other remains a false pass.
 
 **4b — Per-domain spot check** (repeat for the top few domains): raw active `url_scores` count for a domain **must equal** its `mv_url_scores_enriched_v3` count; note where `urls_scores_domain.frequency` diverges.
 ```sql
@@ -139,7 +139,7 @@ SELECT (SELECT count(*) FROM url_scores WHERE batch_id='<batch_id>' AND active A
        (SELECT count(*) FROM mv_url_scores_enriched_v3 WHERE batch_id='<batch_id>' AND lower(domain)='<d>') AS dashboard_mv,
        (SELECT frequency FROM urls_scores_domain WHERE batch_id='<batch_id>' AND domain='<d>') AS urls_scores_domain;
 ```
-Row counts across granularity levels still differ legitimately — but a `raw_active ≠ dashboard_mv` per domain, or a large `urls_scores_domain_family / dashboard_mv` ratio, is a real inflation bug to report.
+Row counts across granularity levels still differ legitimately — but a `raw_active ≠ dashboard_mv` per domain, or a `urls_scores_domain_family / dashboard_mv` ratio above ~1.01, is a real inflation bug to report (pre-2026-09-03 that ratio was 1.4–1.6×; ZEB-539 fixed it).
 
 ---
 
