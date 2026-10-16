@@ -1,0 +1,272 @@
+[
+ {
+  "prompt": "I'm a primary teacher looking for a good website for teaching resources. Where do most teachers in the UK go?",
+  "category": "Category Discovery",
+  "label": "Primary teaching resources"
+ },
+ {
+  "prompt": "Can you compare the main teaching resource websites for primary schools in England? I want to know which are worth paying for.",
+  "category": "Category Discovery",
+  "label": "Primary teaching resources"
+ },
+ {
+  "prompt": "I've got about £10 a month to spend on teaching resources for my Year 4 class. What should I sign up to?",
+  "category": "Category Discovery",
+  "label": "Primary teaching resources"
+ },
+ {
+  "prompt": "My son is 7 and I want to support his learning at home. What educational resources would you suggest for reading and maths?",
+  "category": "Category Discovery",
+  "label": "Learning resources for kids"
+ },
+ {
+  "prompt": "Which learning websites for primary-age kids are worth paying for? I'd also like to know if any free ones are just as good.",
+  "category": "Category Discovery",
+  "label": "Learning resources for kids"
+ },
+ {
+  "prompt": "I want to pay for one learning resource site for my 6 year old in Year 1. Which would you pick?",
+  "category": "Category Discovery",
+  "label": "Learning resources for kids"
+ },
+ {
+  "prompt": "I'm a primary teacher and I spend most of my weekend planning lessons. What do other teachers use to get that time back?",
+  "category": "Category Discovery",
+  "label": "Teacher workload"
+ },
+ {
+  "prompt": "My planning workload is out of control this term. Which tools or websites save primary teachers the most time?",
+  "category": "Category Discovery",
+  "label": "Teacher workload"
+ },
+ {
+  "prompt": "As an early career teacher I'm making everything from scratch and it's not sustainable. What would you tell me to use?",
+  "category": "Category Discovery",
+  "label": "Teacher workload"
+ },
+ {
+  "prompt": "I run a small nursery and I'm looking for ready-made EYFS activities. Where do early years practitioners usually get them?",
+  "category": "Customer Type",
+  "label": "Early years practitioners"
+ },
+ {
+  "prompt": "Which EYFS resource websites are most useful for reception teachers? I'd like something that covers the whole early years framework.",
+  "category": "Customer Type",
+  "label": "Early years practitioners"
+ },
+ {
+  "prompt": "I'm a childminder who needs EYFS activity ideas for my setting. Which website would you recommend I subscribe to?",
+  "category": "Customer Type",
+  "label": "Early years practitioners"
+ },
+ {
+  "prompt": "We've just started home educating our 8 year old. Where can we find good learning resources to follow at home?",
+  "category": "Customer Type",
+  "label": "Home educators"
+ },
+ {
+  "prompt": "Can you suggest a few resource sites for home educating primary-age children in the UK? I want something that covers maths, English and science.",
+  "category": "Customer Type",
+  "label": "Home educators"
+ },
+ {
+  "prompt": "Which learning resource subscription would suit a family home educating two primary-age children?",
+  "category": "Customer Type",
+  "label": "Home educators"
+ },
+ {
+  "prompt": "Top places to find KS3 English teaching resources? I've just moved from primary to secondary.",
+  "category": "Customer Type",
+  "label": "Secondary teachers"
+ },
+ {
+  "prompt": "Which websites have good GCSE teaching resources for science teachers? I'd like to compare a few.",
+  "category": "Customer Type",
+  "label": "Secondary teachers"
+ },
+ {
+  "prompt": "I teach KS3 and GCSE history. If you were me, which resource site would you pay for this year?",
+  "category": "Customer Type",
+  "label": "Secondary teachers"
+ },
+ {
+  "prompt": "Our school needs to choose a new phonics scheme. Which DfE validated programmes should we be looking at?",
+  "category": "Product",
+  "label": "Phonics programme"
+ },
+ {
+  "prompt": "I'm the phonics lead at a primary school. How do the main systematic synthetic phonics programmes compare on cost?",
+  "category": "Product",
+  "label": "Phonics programme"
+ },
+ {
+  "prompt": "We're a small one-form-entry school on a tight budget. Which validated phonics programme would suit us?",
+  "category": "Product",
+  "label": "Phonics programme"
+ },
+ {
+  "prompt": "I'm a maths lead looking for a primary maths scheme of work. What are the main options in England?",
+  "category": "Product",
+  "label": "Schemes of work"
+ },
+ {
+  "prompt": "Can you compare ready-made schemes of work for primary science? We want full lesson sequences with slides.",
+  "category": "Product",
+  "label": "Schemes of work"
+ },
+ {
+  "prompt": "Our school wants a new primary geography scheme of work to start in January. What would you recommend?",
+  "category": "Product",
+  "label": "Schemes of work"
+ },
+ {
+  "prompt": "Where can I find printable maths worksheets for my 7 year old? I want to give her some extra practice at home.",
+  "category": "Product",
+  "label": "Printable worksheets"
+ },
+ {
+  "prompt": "Which websites have good printable English worksheets for Year 3? I'm happy to pay if they're better than the free ones.",
+  "category": "Product",
+  "label": "Printable worksheets"
+ },
+ {
+  "prompt": "I'm looking for a site with printable worksheets for my 10 year old that cover maths and spelling. Which one should I sign up to?",
+  "category": "Product",
+  "label": "Printable worksheets"
+ },
+ {
+  "prompt": "Where can I get editable teaching resources for primary? I always need to tweak worksheets for my class.",
+  "category": "Features",
+  "label": "Editable resources"
+ },
+ {
+  "prompt": "Which teaching resource sites let you edit the PowerPoints and worksheets before you use them?",
+  "category": "Features",
+  "label": "Editable resources"
+ },
+ {
+  "prompt": "I'm a Year 2 teacher who changes nearly every resource I download. Which subscription gives me the most editable files?",
+  "category": "Features",
+  "label": "Editable resources"
+ },
+ {
+  "prompt": "I'm a SENCo at a primary school looking for SEND resources for pupils with dyslexia. Where should I look?",
+  "category": "Features",
+  "label": "SEND resources"
+ },
+ {
+  "prompt": "Can you suggest some websites with good SEND teaching resources for KS2? I need materials for pupils working below age-related expectations.",
+  "category": "Features",
+  "label": "SEND resources"
+ },
+ {
+  "prompt": "I've got several autistic pupils in my mainstream Year 4 class. Which teaching resource site would help me most?",
+  "category": "Features",
+  "label": "SEND resources"
+ },
+ {
+  "prompt": "I want to try using AI to help with lesson planning. Which tools are designed specifically for UK teachers?",
+  "category": "Features",
+  "label": "AI lesson planning"
+ },
+ {
+  "prompt": "Which AI lesson planning tools made for teachers produce lessons you can actually use? I'd like to compare a few for KS2.",
+  "category": "Features",
+  "label": "AI lesson planning"
+ },
+ {
+  "prompt": "I'm a primary teacher with about £5 a month for an AI planning tool. Which one should I go for?",
+  "category": "Features",
+  "label": "AI lesson planning"
+ },
+ {
+  "prompt": "My daughter has her Year 6 SATs in May. What resources can I use at home to help her prepare?",
+  "category": "Use Case",
+  "label": "SATs preparation"
+ },
+ {
+  "prompt": "Top SATs revision sites for parents? I want to compare a few before buying anything.",
+  "category": "Use Case",
+  "label": "SATs preparation"
+ },
+ {
+  "prompt": "My son is nervous about his KS2 maths SATs. What revision resource would you recommend for practising at home?",
+  "category": "Use Case",
+  "label": "SATs preparation"
+ },
+ {
+  "prompt": "I'm off sick tomorrow and need to leave cover work for my Year 3 class. Where can I find ready-made cover lessons?",
+  "category": "Use Case",
+  "label": "Cover lessons"
+ },
+ {
+  "prompt": "Which websites have ready-to-teach cover lessons for primary? I need something supply teachers can pick up with no prep.",
+  "category": "Use Case",
+  "label": "Cover lessons"
+ },
+ {
+  "prompt": "As a supply teacher I'm often handed no plans. Which resource site would you sign up to for emergency lessons?",
+  "category": "Use Case",
+  "label": "Cover lessons"
+ },
+ {
+  "prompt": "I don't want my 8 year old to fall behind in maths over the summer holidays. What learning resources could we use at home?",
+  "category": "Use Case",
+  "label": "Holiday learning"
+ },
+ {
+  "prompt": "Can you suggest a few workbooks or learning websites to keep my 9 year old's reading and writing going over the summer?",
+  "category": "Use Case",
+  "label": "Holiday learning"
+ },
+ {
+  "prompt": "It's half-term next week and I'd like my 10 year old to do a bit of maths each day. Which learning website would you go with?",
+  "category": "Use Case",
+  "label": "Holiday learning"
+ },
+ {
+  "prompt": "I'm tired of using five different sites for teaching resources. Where can I find everything for primary in one place?",
+  "category": "USPs",
+  "label": "All-in-one library"
+ },
+ {
+  "prompt": "Which teaching resource subscriptions cover the most subjects and year groups? I'd like to compare what you get for the price.",
+  "category": "USPs",
+  "label": "All-in-one library"
+ },
+ {
+  "prompt": "Best single subscription for a primary teacher who wants resources for every subject from EYFS to Year 6?",
+  "category": "USPs",
+  "label": "All-in-one library"
+ },
+ {
+  "prompt": "I'd rather use resources written by actual teachers than AI-generated ones. Where can I find those for primary?",
+  "category": "USPs",
+  "label": "Teacher-made resources"
+ },
+ {
+  "prompt": "Which teaching resource websites have their materials created and checked by qualified teachers? Quality varies so much on some sites.",
+  "category": "USPs",
+  "label": "Teacher-made resources"
+ },
+ {
+  "prompt": "I need reliable KS2 history resources I won't have to fact-check. Which teacher-made resource site would you trust?",
+  "category": "USPs",
+  "label": "Teacher-made resources"
+ },
+ {
+  "prompt": "My daughter is in Year 4 and I want to help with what she's learning at school. Where can I find resources that follow the English National Curriculum?",
+  "category": "USPs",
+  "label": "Matches school curriculum"
+ },
+ {
+  "prompt": "Which home learning websites actually match what children are taught in UK primary schools? Some seem to follow the American curriculum.",
+  "category": "USPs",
+  "label": "Matches school curriculum"
+ },
+ {
+  "prompt": "I want to support my Year 2 son with the same topics his class is covering. Which learning site matched to the National Curriculum would you suggest?",
+  "category": "USPs",
+  "label": "Matches school curriculum"
+ }
+]

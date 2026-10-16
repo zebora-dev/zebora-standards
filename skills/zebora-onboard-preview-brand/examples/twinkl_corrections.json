@@ -1,0 +1,54 @@
+{
+ "include_context_mappings": true,
+ "mappings": {
+  "Doodle Learning": "DoodleLearning",
+  "Widgit Resources": "Widgit"
+ },
+ "remove": [
+  "British Dyslexia Association",
+  "Dyslexia Scotland",
+  "Education Endowment Foundation",
+  "Teaching Resources",
+  "Summer Brain Quest",
+  "Planbook",
+  "Chalk",
+  "Tapestry"
+ ],
+ "remove_prefix": [
+  "Now/next/then"
+ ],
+ "remove_by_output": {
+  "118542": [
+   "Oxford University Press"
+  ]
+ },
+ "merge_by_output": {
+  "118570": {
+   "Pearson": "Pearson Edexcel"
+  }
+ },
+ "type_fix": {
+  "unknown": "resource_provider"
+ },
+ "add": [
+  {
+   "output_id": 118550,
+   "brand": "Sounds-Write",
+   "entity_type": "programme"
+  },
+  {
+   "output_id": 118550,
+   "brand": "Floppy's Phonics",
+   "entity_type": "programme",
+   "variants": [
+    "Floppy’s Phonics",
+    "Floppy's Phonics"
+   ]
+  },
+  {
+   "output_id": 118604,
+   "brand": "Keystage History",
+   "entity_type": "resource_provider"
+  }
+ ]
+}

@@ -6,6 +6,15 @@ and this project adheres to [Semantic Versioning](https://semver.org).
 
 ## [Unreleased]
 
+### Added
+
+- **`skills/zebora-onboard-preview-brand`** (ZEB-1050) — onboard a demo / preview brand from a
+  prompt sheet to a live dashboard: setup, DataForSEO extraction, context, fan-out scoring, review,
+  stored-row corrections, entity dims, enrichment, URL classification, then the shared release
+  chain (refresh, summaries, readiness on the **preview profile**, ZEB-1086), a summaries review
+  gate and `go_live.py`. Scripts find the sibling checkouts relative to `zebora-standards`
+  (`ZEBORA_*` overrides); the old `refresh_stepwise.py` is replaced by the release chain.
+
 ### Changed
 
 - **`skills/zebora-batch-release`, `zebora-scoring-vec`, `zebora-scoring-url`** — describe the
