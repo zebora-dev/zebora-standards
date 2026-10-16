@@ -1,0 +1,181 @@
+{
+ "brand_slug": "twinkl",
+ "target_brand": "Twinkl",
+ "market": "UK",
+ "category_label": "Teaching resources",
+ "category_description": "Teaching and learning resources for UK primary schools, teachers and families (Twinkl market)",
+ "entity_types": [
+  "brand",
+  "resource_provider",
+  "publisher",
+  "programme",
+  "platform",
+  "product",
+  "ai_tool",
+  "organisation"
+ ],
+ "extractable": [
+  "teaching-resource websites and subscription libraries (lesson plans, worksheets, PowerPoints, schemes of work)",
+  "home-learning, reading, maths and revision sites or apps for children and parents (including SATs preparation)",
+  "phonics programmes, schemes of work and curriculum providers",
+  "AI lesson-planning tools built specifically for teachers (Oak Aila, Teachmate, Diffit, MagicSchool, Kuraplan, Khanmigo)",
+  "workbook and revision-guide publishers surfaced as an option (CGP, Collins, Scholastic, Schofield & Sims)",
+  "free public, charitable or subject-association resource providers when offered as an option (Oak National Academy, BBC Bitesize, NRICH, Historical Association, BookTrust, STEM Learning)",
+  "exam boards (AQA, OCR, Pearson Edexcel) and heritage bodies (The National Archives, Historic England) when offered as a source of teaching resources"
+ ],
+ "exclusions": [
+  "government bodies and official guidance as such: DfE, gov.uk, Ofsted, STA, the National Curriculum, the EYFS statutory framework. Guidance documents are references, not providers.",
+  "research, evidence, advice and review bodies cited as validators or sources: EEF, NFER, Sutton Trust, Teacher Tapp, British Dyslexia Association, Dyslexia Scotland, Nasen, EdTech Impact, quality-mark schemes",
+  "social, video and community platforms: Facebook groups, YouTube, Reddit, Pinterest, Instagram, TikTok, X, Mumsnet (channels, not providers)",
+  "general-purpose AI assistants (ChatGPT, Gemini, Claude, Copilot, Perplexity) named incidentally. EXCEPTION: extract one when the response explicitly shortlists it as an option for the buyer's task",
+  "generic productivity, design and office tools: Canva, Notion, Google Docs / Slides / Classroom, Microsoft Word / PowerPoint, Padlet, Trello",
+  "lesson-planner / timetable / admin software that is not a resource library or an AI lesson generator (Planbook, Chalk, Tapestry)",
+  "bare book or workbook TITLES with no publisher or brand named: extract the publisher when one is named"
+ ],
+ "standalone_exclusions": "worksheets, lesson plans, schemes of work, phonics, SSP, SATs, KS1, KS2, KS3, GCSE, EYFS, early years, Year 1 to Year 6, National Curriculum, curriculum, free resources, subscription, PDF, PowerPoint, editable, printable, SEND, SENCo, dyslexia, autism, home education, cover lessons, revision, past papers, workbook, planning, workload, AI",
+ "collapse": [
+  [
+   [
+    "Twinkl Phonics",
+    "Twinkl Extra",
+    "Twinkl Ultimate",
+    "Twinkl Create",
+    "Twinkl Go",
+    "Twinkl Planit",
+    "Twinkl AI Planner"
+   ],
+   "Twinkl"
+  ],
+  [
+   [
+    "Oak Aila",
+    "Oak Lessons"
+   ],
+   "Oak National Academy"
+  ],
+  [
+   [
+    "Tes Resources",
+    "Tes Teaching Resources"
+   ],
+   "Tes"
+  ],
+  [
+   [
+    "White Rose Maths",
+    "White Rose Science"
+   ],
+   "White Rose Education"
+  ],
+  [
+   [
+    "Oxford Owl for Home"
+   ],
+   "Oxford Owl"
+  ],
+  [
+   [
+    "BBC Bitesize Maths",
+    "Bitesize"
+   ],
+   "BBC Bitesize"
+  ],
+  [
+   [
+    "Khanmigo",
+    "Khan Academy Kids"
+   ],
+   "Khan Academy"
+  ]
+ ],
+ "canonical_names": [
+  "Twinkl",
+  "Oak National Academy",
+  "BBC Bitesize",
+  "White Rose Education",
+  "Tes",
+  "Oxford Owl",
+  "Classroom Secrets",
+  "Teachit",
+  "PlanBee",
+  "Teach Starter",
+  "Kapow Primary",
+  "Hamilton Trust",
+  "Plazoom",
+  "Topmarks",
+  "Phonics Play",
+  "Third Space Learning",
+  "Sparx",
+  "Times Tables Rock Stars",
+  "Seneca",
+  "Khan Academy",
+  "CGP",
+  "Collins",
+  "NRICH",
+  "Mrs Mactivity",
+  "Little Wandle",
+  "Read Write Inc",
+  "Jolly Phonics",
+  "Letterland",
+  "Teachmate",
+  "Diffit",
+  "MagicSchool",
+  "Kuraplan"
+ ],
+ "examples": [
+  "Twinkl -> brand Twinkl, entity Twinkl (target)",
+  "Oak National Academy -> brand Oak National Academy, entity Oak National Academy",
+  "Teachmate -> brand Teachmate, entity Teachmate, entity_type ai_tool",
+  "Little Wandle -> brand Little Wandle, entity Little Wandle, entity_type programme",
+  "CGP -> brand CGP, entity CGP, entity_type publisher"
+ ],
+ "target_aliases": [
+  "Twinkl",
+  "Twinkl Educational Publishing",
+  "Twinkl Phonics",
+  "Twinkl Extra",
+  "Twinkl Ultimate",
+  "Twinkl Create",
+  "Twinkl Go",
+  "Twinkl Planit",
+  "Twinkl Resources",
+  "Twinkl.co.uk",
+  "Twinkl.com"
+ ],
+ "about_target": "Twinkl is a UK-based educational publisher of teacher-created teaching and learning resources: worksheets, PowerPoints, lesson plans, schemes of work, phonics, EYFS and SEND materials and home-learning resources, sold mainly by subscription. Only mentions of Twinkl as a teaching or learning resource provider count.",
+ "primary": [
+  {
+   "name": "Oak National Academy",
+   "url": "https://www.thenational.academy"
+  },
+  {
+   "name": "BBC Bitesize",
+   "url": "https://www.bbc.co.uk/bitesize"
+  },
+  {
+   "name": "White Rose Education",
+   "url": "https://whiteroseeducation.com"
+  },
+  {
+   "name": "Tes",
+   "url": "https://www.tes.com"
+  },
+  {
+   "name": "Oxford Owl",
+   "url": "https://home.oxfordowl.co.uk"
+  },
+  {
+   "name": "Classroom Secrets",
+   "url": "https://classroomsecrets.co.uk"
+  },
+  {
+   "name": "Teachit",
+   "url": "https://www.teachit.co.uk"
+  },
+  {
+   "name": "PlanBee",
+   "url": "https://www.planbee.com"
+  }
+ ],
+ "notes": "Abbreviated example config from the Twinkl onboarding (the live v3 context has more mappings)."
+}
