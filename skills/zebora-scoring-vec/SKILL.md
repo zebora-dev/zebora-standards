@@ -86,7 +86,7 @@ ahead.
 - **Repo:** `/Users/grantsimmonds/Documents/dev/branded-llm/brand_score_pipeline`
 - **Pipeline docs:** `docs/new_brand_visibility_setup.md` and `docs/ARCHITECTURE.md`
 - **Key modules:** `db/entity_resolution_v3.py`, `db/entity_enrichment_v3.py`, `db/entity_enrichment_gemini.py`, `db/refresh_views.py`
-- **Key scripts:** `scripts/refresh_entity_metrics_matviews.py`
+- **Key scripts:** `scripts/batch_release/release_chain.py` (refresh a batch). `scripts/refresh_entity_metrics_matviews.py` is deprecated: it rebuilds every view for every batch
 - **DB:** PostgreSQL via `.env` (SUPABASE_URL / SUPABASE_SERVICE_KEY / DATABASE_URL)
 - **Python env:** `poetry run python` (or `.venv/bin/python`) from the repo root
 
@@ -147,9 +147,13 @@ cd /Users/grantsimmonds/Documents/dev/branded-llm/brand_score_pipeline && \
 psql "$DATABASE_URL" -c "SET statement_timeout='12min'; SET lock_timeout='10s'; SELECT public.refresh_entity_metrics_v2('<batch_id>'::uuid);"
 ```
 
-It refreshes the entity/citation matviews (~3 min) without blocking the dashboard. Do **not** use
-`scripts/refresh_entity_metrics_matviews.py` here: it also refreshes `mv_url_scores_enriched_v4`
-(non-concurrently), which locks the live dashboard for every client.
+It refreshes the entity/citation matviews without blocking the dashboard. Two
+`*_by_llm_brand_entity_v2` views hang when the planner nests loops, so the function now runs with
+`enable_nestloop = off` (149 s, ZEB-1081; before 16 Oct it exceeded its 20 minute limit, ZEB-1076).
+Prefer the release chain's `entity_refresh` step
+(`release_chain.py --batch-id <id> --apply --only entity_refresh`, 27 steps with nested loops off, about
+3 minutes, a per-step timeout and retry, and a failure names the step). Do **not** use `scripts/refresh_entity_metrics_matviews.py` or
+`POST /api/batches/refresh-views[/v2]`: they rebuild every view for every batch and record nothing.
 
 ### 1c — Batch health summary
 
@@ -699,7 +703,7 @@ Run via psql with an extended timeout:
 psql "$DATABASE_URL" -c "SET statement_timeout = '10min'; SELECT public.refresh_entity_metrics_v2('<batch_id>'::uuid);"
 ```
 
-Report the refresh result JSON (view names + ms). If `refresh_url_scores_v1` is also needed (e.g. URL scores changed), stop and ask first: it refreshes `mv_url_scores_enriched_v4` non-concurrently and **locks the live dashboard for every client** for several minutes — run it only with explicit go-ahead, ideally off-hours.
+Report the refresh result JSON (view names + ms). If `refresh_url_scores_v1` is also needed (e.g. URL scores changed), it takes about 2 minutes (114 s on Twinkl) and no longer locks the dashboard (ZEB-1059); say that you are running it, then run it via the release chain (`--only url_refresh`).
 
 ---
 
