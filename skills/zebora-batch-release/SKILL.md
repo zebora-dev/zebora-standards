@@ -83,9 +83,11 @@ and `--record` (save the result to the batch's release record — its only write
 - **Workers are stopped between jobs** (ZEB-1087). `POST /api/workflows/batch/release` with
   `apply` returns 503 when no Prefect worker is online, and the status endpoint reports a Late run
   as pending. Start one first: `fly machine start <id> -a brand-score-worker`. The plan-only call
-  needs no worker. The release chain's `pr_payloads` step rebuilds the PR dashboard cache; the
-  `pr-payload-sweep` deployment (every 20 min) rebuilds anything marked stale by other PR runs, and
-  `pr-payload-audit` (02:40) checks the cache against the live functions nightly.
+  needs no worker. The release chain's `pr_payloads` step rebuilds the PR dashboard cache, and every PR flow
+  rebuilds its own batch when it completes (a failed run only marks it stale, so the dashboard computes
+  live). Workers stay stopped by decision (ZEB-1087, to keep costs down), so nothing that needs a worker
+  is scheduled: run `pr-payload-sweep` on demand to catch up stale batches, and `pr-payload-audit` after a
+  manual SQL edit or a shared entity change.
 - **Run from current code.** A stale local branch cost three failed PR runs in September.
 - **Long jobs run detached** or on the workers. Background jobs in a Claude Code session stop after
   30 minutes.
