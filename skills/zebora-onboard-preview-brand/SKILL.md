@@ -302,9 +302,7 @@ Check each figure against the run's inputs (`analysis_runs.artifact_data` for th
 - quotes a figure the dashboard doesn't show
 - reads like a draft
 
-Known prompt issues as of 16 Oct 2026, until they're fixed:
-- the `visibility` summary says "in ChatGPT" even when the score blends ChatGPT and AI Overview
-- the `competitors-insights` heading reads "This Month's Visibility Takeaways" The user approves or edits them in the admin app before the brand is shown to the prospect.
+Two prompt bugs found on Twinkl were fixed on 16 Oct 2026 (ZEB-1093): `visibility-summary` v5 no longer says "in ChatGPT" for a blended score, and `competitor-insights` v3 has the right heading. Summaries written before that may still carry the old wording. The user approves or edits them in the admin app before the brand is shown to the prospect.
 
 ## Phase 12 · Verify
 
