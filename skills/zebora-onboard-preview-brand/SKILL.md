@@ -252,7 +252,7 @@ This is the same chain the monthly pool brands use (see `zebora-batch-release`).
 | `url_refresh` | refreshes the URL views | about 2 min |
 | `pr_scores` | refreshes PR scores | seconds |
 | `pr_module` + `pr_payloads` | skipped, because a preview has no PR module | — |
-| `summaries` | the batch summary flow | varies; LLM calls |
+| `summaries` | only the 6 summaries a preview dashboard shows (ZEB-1092) | about 2 min, about $0.01 |
 | `readiness` | the gate, saved in the batch's release record | — |
 
 Every refresh is `CONCURRENTLY`, so live dashboards keep working. The views are global, so the time doesn't depend on batch size.
@@ -269,7 +269,7 @@ curl -s -X POST https://brand-score-api.fly.dev/api/workflows/batch/release \
 
 `apply` returns **503 when no Prefect worker is online**. Start one first (cost GATE, as in Phase 4). It returns 409 while an earlier `apply` run for the batch, started under 6 hours ago, is still running.
 
-Or run it locally, with no worker needed. It still needs `PREFECT_API_URL` reachable (in the pipeline `.env`), and it takes about 10 minutes, so run it detached:
+Or run it locally, with no worker needed. Set `PREFECT_API_URL=https://brand-score-prefect.fly.dev/api` first: the pipeline `.env` points at a local Prefect (`127.0.0.1:4200`), and the summaries step fails against it. It takes about 10 minutes, so run it detached:
 
 ```bash
 cd $PIPE && nohup .venv/bin/python -u scripts/batch_release/release_chain.py --batch-id <batch> --apply > /tmp/release_<slug>.log 2>&1 &
@@ -289,14 +289,22 @@ $PY_DB scripts/batch_release/readiness.py --batch-id <id> --waive "<line>" --rea
 
 ## Phase 11 · Review the summaries (GATE)
 
-The `summaries` step writes 12 location summaries plus sentiment insights. **They show on the dashboard as soon as they are active. The dashboard does not check `is_approved`.** So the prospect sees them unreviewed unless you check them first.
+A preview dashboard opens only Overview, Visibility, Competitors and Signals. So the `summaries` step writes just the 6 summaries those pages read: `visibility`, `visibility-insights`, `competitors`, `competitors-insights`, `signals` and `signals-insights`. It skips sentiment insights and pillar caveats (ZEB-1092), and readiness requires those 6. **They show on the dashboard as soon as they are active. The dashboard does not check `is_approved`.** So the prospect sees them unreviewed unless you check them first.
 
 Read them in the admin app (`/batches/<batch_id>/summaries`), or read-only:
 ```sql
 select location, type, left(content, 300) from scores_summaries where batch_id = '<batch>' and is_active order by location;
 ```
 
-Flag anything that names the wrong brand, quotes a figure the dashboard doesn't show, or reads like a draft. The user approves or edits them in the admin app before the brand is shown to the prospect.
+Check each figure against the run's inputs (`analysis_runs.artifact_data` for the batch). Flag anything that:
+- names the wrong brand, or names a domain instead of its brand (Twinkl: "The National Academy" for Oak National Academy)
+- leaves out the largest source
+- quotes a figure the dashboard doesn't show
+- reads like a draft
+
+Known prompt issues as of 16 Oct 2026, until they're fixed:
+- the `visibility` summary says "in ChatGPT" even when the score blends ChatGPT and AI Overview
+- the `competitors-insights` heading reads "This Month's Visibility Takeaways" The user approves or edits them in the admin app before the brand is shown to the prospect.
 
 ## Phase 12 · Verify
 
