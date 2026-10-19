@@ -58,7 +58,7 @@ Install: `ln -s <workspace>/zebora-standards/skills/zebora-onboard-preview-brand
 
 | Job | Use | Do NOT use |
 |---|---|---|
-| Extraction (GPT + Google AI Overview) | `extract_dataforseo.py`: one-off submit plus `reconcile_pending`. About 3 min, about $0.13 per 100 outputs | Selenium workers, the Prefect extraction pool or the webhook machines. A preview brand needs none of them |
+| Extraction (GPT + Google AI Overview) | `extract_dataforseo.py`: one-off submit plus `reconcile_pending`. About 3 min, about 13 US cents per 100 outputs | Selenium workers, the Prefect extraction pool or the webhook machines. A preview brand needs none of them |
 | Scoring a whole batch | **Fan-out dispatcher**: `POST https://brand-score-api.fly.dev/api/workflows/score-single-output` with `output_id` as an **array of ints**. That makes one flow run per output, spread across all workers | `POST /batch/init` or the `batch-scoring-test` deployment. They run every output in ONE process, so extra workers do nothing (36 min for 106 outputs) |
 | Re-scoring one output | the same endpoint with `output_id` as a string and `force: true` | A forced re-score while a batch flow is still running. It can leave two active score rows |
 | DB writes | `supabase-py` with `BRANDSIGHT_SUPABASE_SERVICE_KEY` (the scripts do this) | The Supabase MCP (read-only) |
@@ -112,16 +112,23 @@ Checks the script enforces:
 Known traps:
 - `competitors.normalized_name` is a generated column. Never insert it.
 - Tenant defaults to 1, like TransUnion (Smart Energy GB used a different tenant). Confirm with the user.
+- **A regional brand has two names.** The display name carries the market (`--name "Twinkl (US)"`, like "Big Potato (US)"), but the answers say "Twinkl". The script sets `name_canonical`, `config.target_brand` and the company record to the **target name**. By default that's `--name` without its market tag; override it with `--target-name`. The scorer, the corrections and the dimension seeding all match on it. Before this fix, Twinkl (US) came out with 0 target rows.
 
 ## Phase 2 · Extraction
 
+The DataForSEO code needs the **extraction repo's own Python environment**: the pipeline venv lacks its packages (`pyperclip` and others). Use a clean worktree of the extraction repo on `origin/main` with its own venv. Don't use a long-lived checkout, which may be on another branch and far behind (on 19 Oct 2026 it was 59 commits behind and had no DataForSEO modules):
+
 ```bash
-$PY_DB $SKILL/extract_dataforseo.py <batch_id> --region uk     # --repo defaults to $ZEBORA_EXTRACTION_REPO
+EX=<scratch dir>/ae_main
+git -C "$ZEBORA_EXTRACTION_REPO" fetch -q origin main && git -C "$ZEBORA_EXTRACTION_REPO" worktree add -q --detach "$EX" origin/main
+(cd "$EX" && uv sync --frozen -q)
+set -a; source "$ZEBORA_EXTRACTION_REPO/.env" >/dev/null 2>&1; set +a      # Supabase keys for the extraction code (never echo)
+"$EX/.venv/bin/python" -u $SKILL/extract_dataforseo.py <batch_id> --repo "$EX" --region us   # or uk
 ```
 
-This submits GPT and GAO to the DataForSEO Standard queue without a pingback, then collects with `reconcile_pending`. Expect about 3 minutes.
+This submits GPT and GAO to the DataForSEO Standard queue without a pingback, then collects with `reconcile_pending`. Expect about 3 to 5 minutes. If only AI Overview tasks are left pending and nothing changes for `--stall-minutes` (default 5), it stops waiting: a missing AI Overview never blocks readiness.
 
-Google AI Overview returns nothing for some prompts (`capture_state: no_ai_overview`). The pipeline deactivates those outputs automatically (about 2 of 108). That is normal, and the readiness Capture line allows for it.
+Google shows no AI Overview for some searches. Those outputs come back empty with `metadata.ai_overview = false`, and the script deactivates them at the end, with `deactivated_reason` recorded. That's 2 of 54 for Twinkl UK and 13 of 54 for Twinkl US, so expect more in the US. They aren't answers, and scoring them would count the target as "not visible". The readiness Capture line only warns below 50%.
 
 ## Phase 3 · Context v1 and the primary tier
 
@@ -148,7 +155,12 @@ $PY_DB $SKILL/create_context.py --config context.json --go
 - local authorities and shops are out
 - `entity_type` is never `unknown`
 
-**Primary tier:** pick the most-named competitors across the extracted responses, counting how many prompts name each. **Flag the tier as provisional** in `metadata.notes`, and confirm it with the user at the Phase 5 gate.
+**Primary tier:** pick the most-named competitors across the extracted responses, counting how many prompts name each. Ignore citation noise (e.g. `utm_source=chatgpt.com` makes "ChatGPT" look universal) and tools the rules exclude. **Flag the tier as provisional** in `metadata.notes`, and confirm it with the user at the Phase 5 gate.
+
+If the brand already has a preview in another market, ask whether to add that market's primaries too, so the two dashboards line up. Twinkl US kept its 8 and added the UK 8, for 16 in total. To change primaries after Phase 3:
+1. Insert `competitors` and `competitors_primary` rows (next `order`).
+2. Set `is_primary_competitor` on existing `visibility_entity_brands` rows, or add brand and entity rows for primaries that aren't seeded yet.
+3. Re-run `apply_corrections.py --go` so the stored rows are re-tagged.
 
 ## Phase 4 · Score with the fan-out dispatcher
 
@@ -199,7 +211,7 @@ The script:
 - backs up every row first, to `$ZEBORA_BACKUP_ROOT/<slug>_<date>/`
 - records each change on the row (`metadata.manual_edits`, `canonicalised.rule`)
 - merges duplicates produced by renames
-- recomputes target and primary flags from the DB
+- re-tags every entity whose target / primary flags disagree with the DB (the target is matched on the brand's `name_canonical`). Re-run it after you change the primary tier
 - renumbers positions
 
 It is idempotent: a second run reports 0 changes.
@@ -252,7 +264,7 @@ This is the same chain the monthly pool brands use (see `zebora-batch-release`).
 | `url_refresh` | refreshes the URL views | about 2 min |
 | `pr_scores` | refreshes PR scores | seconds |
 | `pr_module` + `pr_payloads` | skipped, because a preview has no PR module | — |
-| `summaries` | only the 6 summaries a preview dashboard shows (ZEB-1092) | about 2 min, about $0.01 |
+| `summaries` | only the 6 summaries a preview dashboard shows (ZEB-1092) | about 2 min, about 1 US cent |
 | `readiness` | the gate, saved in the batch's release record | — |
 
 Every refresh is `CONCURRENTLY`, so live dashboards keep working. The views are global, so the time doesn't depend on batch size.

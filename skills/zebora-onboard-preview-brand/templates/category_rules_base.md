@@ -17,6 +17,7 @@ Do not extract:
 - people, places, URLs, citations, sources
 {{EXCLUSIONS}}
 - generic retailers and marketplaces named only as a place to buy, and online shops / marketplace listings and the product titles on them.
+  A marketplace recommended AS the provider for the buyer's need (e.g. a teaching-resource marketplace such as Teachers Pay Teachers) is NOT a generic retailer: extract it.
   A shop or stockist name that only appears inside an image caption is NOT an entity.
 - local authorities and their services: councils, "Local Offer" style pages, regional education or health bodies
 - titles and headings that are not providers: article, blog-post, page, toolkit, guide and activity titles are NEVER entities

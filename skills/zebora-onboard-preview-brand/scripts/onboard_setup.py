@@ -13,6 +13,7 @@ import argparse
 import csv
 import datetime as dt
 import json
+import re
 import os
 import sys
 from pathlib import Path
@@ -78,6 +79,12 @@ def main():
     ap.add_argument(
         "--url", required=True, help="primary site, e.g. https://www.twinkl.co.uk"
     )
+    ap.add_argument(
+        "--target-name",
+        help="the brand as the answers name it (default: --name without a trailing market tag, "
+        "so 'Twinkl (US)' -> 'Twinkl'). Used for name_canonical, config.target_brand and the "
+        "company record, which the scorer, corrections and dimension seeding match on.",
+    )
     ap.add_argument("--slug")
     ap.add_argument(
         "--category",
@@ -110,6 +117,7 @@ def main():
     ap.add_argument("--go", action="store_true")
     ap.add_argument("--resume", action="store_true")
     a = ap.parse_args()
+    target_name = a.target_name or re.sub(r"\s*\([A-Z]{2,3}\)$", "", a.name).strip()
 
     slug = a.slug or slugify(a.name)
     rows = load_prompts(a.prompts)
@@ -121,7 +129,9 @@ def main():
         (today.replace(day=1) + dt.timedelta(days=32)).replace(day=1).isoformat()
     )
 
-    print(f"brand {a.name} slug={slug} tenant={a.tenant_id} region={a.region}")
+    print(
+        f"brand {a.name} (target name {target_name}) slug={slug} tenant={a.tenant_id} region={a.region}"
+    )
     print(
         f"prompts {len(rows)} | categories {len(cats)} | tag weightings {len(tag_rows)} | category weights sum {sum(cat_w):.6f}"
     )
@@ -173,13 +183,13 @@ def main():
             "brand_values": [{"title": "-", "description": "-"}],
             "localization": a.localization,
             "system_intro": a.system_intro,
-            "target_brand": a.name,
+            "target_brand": target_name,
             "hideSubBrandView": True,
             "dashboardLimitedView": False,
         },
         "is_demo": True,
         "status": "onboarding",
-        "name_canonical": a.name,
+        "name_canonical": target_name,
         "slug": slug,
         "reporting_type": "brand",
         "reporting_version": "v2",
@@ -195,7 +205,7 @@ def main():
         sb.table("competitors")
         .select("*")
         .eq("brand_id", brand_id)
-        .eq("name", a.name)
+        .eq("name", target_name)
         .execute()
         .data
         or [None]
@@ -204,7 +214,7 @@ def main():
         comp = (
             sb.table("competitors")
             .insert(
-                {"name": a.name, "url": a.url, "domain": domain, "brand_id": brand_id}
+                {"name": target_name, "url": a.url, "domain": domain, "brand_id": brand_id}
             )
             .execute()
             .data[0]
