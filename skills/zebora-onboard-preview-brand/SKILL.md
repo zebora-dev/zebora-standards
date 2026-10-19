@@ -71,7 +71,7 @@ Install: `ln -s <workspace>/zebora-standards/skills/zebora-onboard-preview-brand
 
 ```
 0 prompts file  ->  1 setup  ->  2 extract  ->  3 context v1  ->  4 score (fan-out)  ->  5 review (scoring-train)
- ->  6 stored-row corrections  ->  7 seed entity dims  ->  8 enrich websites  ->  9 classify URLs
+ ->  6 stored-row corrections  ->  7 seed entity dims  ->  8 enrich websites  ->  9 classify URLs  ->  9b brand sites
  ->  10 release chain (refresh + summaries + readiness)  ->  11 review summaries  ->  12 verify  ->  13 go live + hand-off
 ```
 
@@ -254,6 +254,18 @@ curl -s -X POST https://brand-score-api.fly.dev/api/workflows/batch/url-classifi
 
 Add `-H "X-API-Key: ..."` if the key has been enforced since ZEB-796. Run this in parallel with Phase 8, since they are independent. For QA of the URL chain, use `zebora-scoring-url` (reporting only).
 
+## Phase 9b · The brand's own sites
+
+```bash
+$PY_DB $SKILL/brand_sites.py --slug <slug>                      # report
+$PY_DB $SKILL/brand_sites.py --slug <slug> --go                 # set the target website to the brand's primary url
+$PY_DB $SKILL/brand_sites.py --slug <slug> --go --add-owned     # also count the listed brand-named domains as owned
+```
+
+Run this after Phases 8 and 9, before the release chain.
+- **Target website.** Enrichment looks the brand up by name, so a brand with sites in several countries can get the wrong one: Twinkl US got `twinkl.co.uk`. The script sets the target's website (dimension rows and company record) to the primary url from setup.
+- **Owned domains.** A citation counts as the brand's own only if its domain is in `brands.urls`. The script lists cited domains that contain the brand name but aren't owned, such as the help centre or other-country sites (Twinkl US: `twinkl.zendesk.com`, `twinkl.com.br`, `twinkl.fr`). **Confirm the list with the user, then pass `--add-owned`.** A domain containing the name isn't always the brand's.
+
 ## Phase 10 · The release chain (refresh, summaries, readiness)
 
 This is the same chain the monthly pool brands use (see `zebora-batch-release`). It runs, in order, stopping at the first step that fails:
@@ -365,7 +377,7 @@ Save a memory note with the ids, decisions and gotchas. List what is not done:
 - [ ] every active output has exactly one active score row
 - [ ] a stored-row backup exists under `$ZEBORA_BACKUP_ROOT`
 - [ ] entity dims seeded, with no near-duplicate brand rows
-- [ ] websites enriched and URLs classified, **then** the release chain
+- [ ] websites enriched and URLs classified, target website and owned domains checked (`brand_sites.py`), **then** the release chain
 - [ ] release chain finished, and readiness recorded as a pass (preview profile) or with agreed waivers
 - [ ] summaries reviewed and approved by the user
 - [ ] `go_live.py --apply` run with the user's name; brand `live`; not in the weekly pool
