@@ -49,7 +49,8 @@ def main():
         .data
     )
     PRIMARY = {p["competitors"]["name"] for p in prim if p.get("competitors")}
-    target = brand["name"]
+    # the answers name the brand by its canonical name ("Twinkl"), not the display name ("Twinkl (US)")
+    target = brand.get("name_canonical") or brand["name"]
     rows = fetch_all(
         sb, "scores_visibility", "entities", batch_id=batch["id"], active=True
     )

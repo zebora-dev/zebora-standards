@@ -98,7 +98,7 @@ def main():
     )
     brand = (
         sb.table("brands")
-        .select("id,name,slug")
+        .select("id,name,name_canonical,slug")
         .eq("id", batch["brand_id"])
         .execute()
         .data[0]
@@ -120,7 +120,8 @@ def main():
         return
 
     spec = json.loads(Path(a.spec).read_text())
-    target = brand["name"]
+    # the answers name the brand by its canonical name ("Twinkl"), not the display name ("Twinkl (US)")
+    target = brand.get("name_canonical") or brand["name"]
     prim = (
         sb.table("competitors_primary")
         .select("competitors(name)")
@@ -217,6 +218,10 @@ def main():
                 e["entity_type"] = TYPE_FIX[e["entity_type"]]
             if e["brand"] == target and e.get("entity_type") != "brand":
                 e["entity_type"] = "brand"
+            want = flags(e["brand"])
+            if any(e.get(k) != v for k, v in want.items()):
+                L["reflagged"].append(e["brand"])
+                e.update(want)
             keep.append(e)
         merged = []
         for e in sorted(keep, key=lambda x: x["position"]):

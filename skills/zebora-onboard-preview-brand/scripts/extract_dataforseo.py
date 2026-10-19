@@ -32,6 +32,13 @@ def main():
     )
     ap.add_argument("--region", default="uk")
     ap.add_argument("--max-minutes", type=int, default=40)
+    ap.add_argument(
+        "--stall-minutes",
+        type=int,
+        default=5,
+        help="stop waiting when only AI Overview tasks are still pending and nothing has changed for this long "
+        "(Twinkl US: one GAO task sat pending for 10+ minutes; a missing AI Overview never blocks readiness)",
+    )
     a = ap.parse_args()
     if not a.repo or not Path(a.repo, "automated_extraction").is_dir():
         sys.exit(
@@ -76,6 +83,7 @@ def main():
     )
 
     sb = dfa._sb()
+    last_pending, changed_at = None, time.time()
     while time.time() - t0 < a.max_minutes * 60:
         res = dfa.reconcile_pending(
             batch_id=a.batch_id, older_than_minutes=0, limit=500
@@ -92,10 +100,37 @@ def main():
             f"[{int(time.time() - t0)}s] sweep={ {k: res[k] for k in ('checked', 'ingested', 'failed', 'still_pending', 'errors') if k in res} } tasks={dict(c)}",
             flush=True,
         )
-        if not any(r["status"] == "pending" for r in rows):
+        pending = sorted(r["provider"] for r in rows if r["status"] == "pending")
+        if not pending:
+            break
+        if pending != last_pending:
+            last_pending, changed_at = pending, time.time()
+        elif set(pending) == {"google-ai-overview"} and time.time() - changed_at > a.stall_minutes * 60:
+            print(f"only {len(pending)} AI Overview task(s) still pending after {a.stall_minutes} min: stopping", flush=True)
             break
         time.sleep(20)
     print("extraction finished", flush=True)
+
+    # Google showed no AI Overview for some searches: those outputs are empty. They are not answers, so
+    # scoring them would count the target as "not visible" on answers that do not exist. Deactivate them
+    # with the reason recorded (Twinkl UK: 2 of 54; Twinkl US: 13 of 54).
+    empty = [
+        r
+        for r in sb.table("prompts_outputs")
+        .select("id,response,metadata")
+        .eq("batch_id", a.batch_id)
+        .eq("llm_model", "google-ai-overview")
+        .eq("active", True)
+        .execute()
+        .data
+        if not (r.get("response") or "").strip()
+        and str((r.get("metadata") or {}).get("ai_overview")).lower() == "false"
+    ]
+    for r in empty:
+        meta = dict(r.get("metadata") or {})
+        meta["deactivated_reason"] = "no_ai_overview: Google showed no AI Overview for this search"
+        sb.table("prompts_outputs").update({"active": False, "metadata": meta}).eq("id", r["id"]).execute()
+    print(f"deactivated {len(empty)} empty AI Overview output(s) (no AI Overview shown)", flush=True)
 
 
 if __name__ == "__main__":
