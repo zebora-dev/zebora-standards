@@ -100,17 +100,23 @@ def main() -> None:
         return
 
     with e.begin() as c:
+        # only rows that really differ: a trailing slash is not a different site, and the views copy
+        # the website, so a cosmetic rewrite would show up only after the next refresh
+        same = "rtrim(lower(coalesce(website, '')), '/') = rtrim(lower(:u), '/')"
         c.execute(
-            text("UPDATE visibility_entity_brands SET website = :u WHERE brand_id = CAST(:b AS uuid) AND is_target_brand"),
+            text(f"UPDATE visibility_entity_brands SET website = :u WHERE brand_id = CAST(:b AS uuid) AND is_target_brand AND NOT {same}"),
             {"u": primary, "b": b["id"]},
         )
         c.execute(
-            text("UPDATE visibility_entities SET website = :u WHERE brand_id = CAST(:b AS uuid) AND is_target_entity"),
+            text(f"UPDATE visibility_entities SET website = :u WHERE brand_id = CAST(:b AS uuid) AND is_target_entity AND NOT {same}"),
             {"u": primary, "b": b["id"]},
         )
         if b["company_entity"]:
-            c.execute(text("UPDATE competitors SET url = :u WHERE id = :i"), {"u": primary, "i": b["company_entity"]})
-        print(f"target website set to {primary}")
+            c.execute(
+                text("UPDATE competitors SET url = :u WHERE id = :i AND rtrim(lower(coalesce(url, '')), '/') <> rtrim(lower(:u), '/')"),
+                {"u": primary, "i": b["company_entity"]},
+            )
+        print(f"target website: {len(wrong)} row(s) set to {primary}" if wrong else "target website already right")
         if a.add_owned and candidates:
             new = urls + [{"url": f"https://{r.d}/", "primary": False} for r in candidates if r.d not in owned_hosts]
             c.execute(
