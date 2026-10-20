@@ -345,14 +345,17 @@ Compare view row counts with the reference brand. The chain's readiness result i
 
 ## Phase 13 · Go live and hand off (GATE: the user approves)
 
-```bash
-cd $PIPE && .venv/bin/python scripts/batch_release/go_live.py --batch-id <id>                       # dry run
-cd $PIPE && .venv/bin/python scripts/batch_release/go_live.py --batch-id <id> --apply --by "<name>"
-```
+Run this from a pipeline checkout on an up-to-date `main`. On 20 Oct 2026 the main checkout was on an old branch that had no `go_live.py`; a fresh worktree on `origin/main` with the pipeline `.env` copied in works.
 
-`go_live.py` approves and activates the batch and points `brands.batch_id` at it. It needs a **recorded readiness pass from the last 24 hours**, and it saves the values it replaces so the switch can be reversed (`--rollback --apply`).
-
-Then set `brands.status = 'live'`, as for TransUnion. Keep `visibility_pool_enabled = false`.
+1. **Approve the summaries** the user signed off in Phase 11: set `is_approved = true` on the batch's 6 active `scores_summaries` rows (supabase-py, as the other scripts do).
+2. **Approve and activate the batch:**
+   ```bash
+   cd $PIPE && .venv/bin/python scripts/batch_release/go_live.py --batch-id <id>                       # dry run
+   cd $PIPE && .venv/bin/python scripts/batch_release/go_live.py --batch-id <id> --apply --by "<name>"
+   ```
+   `go_live.py` approves and activates the batch and points `brands.batch_id` at it. For a preview, setup already pointed `brands.batch_id` at the batch, so only the approval and activation change. It needs a **recorded readiness pass from the last 24 hours**, and it saves the values it replaces so the switch can be reversed (`--rollback --apply`).
+   Before brand-score-pipeline#184, `go_live.py` refused a preview with "this batch is already the brand's live batch", because setup had already pointed the brand at it. If you get that message, update `$PIPE`. Lavazza (20 Oct 2026) was switched by hand instead: `batches.is_approved = now()`.
+3. **Set `brands.status = 'live'`**, as for TransUnion. Keep `visibility_pool_enabled = false`. The rollback values are `onboarding` and the batch's previous `is_approved` (blank for a new preview).
 
 Save a memory note with the ids, decisions and gotchas. List what is not done:
 - empty views
