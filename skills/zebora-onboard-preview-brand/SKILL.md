@@ -252,7 +252,11 @@ curl -s -X POST https://brand-score-api.fly.dev/api/workflows/batch/url-classifi
   -H "Content-Type: application/json" -d '{"batch_id":"<batch>"}'      # then poll status; about 7 min
 ```
 
-Add `-H "X-API-Key: ..."` if the key has been enforced since ZEB-796. Run this in parallel with Phase 8, since they are independent. For QA of the URL chain, use `zebora-scoring-url` (reporting only).
+Add `-H "X-API-Key: ..."` if the key has been enforced since ZEB-796.
+- **Only after scoring has finished.** Classification labels the citations (`url_scores`) that scoring creates. On Lavazza it was started alongside scoring, "completed" in a minute with nothing to classify, and readiness then failed on 63% unclassified.
+- **It needs a worker** (deployment `url-classification-test` on `scoring-pool`). With no worker online the run sits in Late, so start one (cost GATE) or run it while the scoring workers are still up.
+- It can run in parallel with Phase 8, since they're independent.
+- For QA of the URL chain, use `zebora-scoring-url` (reporting only).
 
 ## Phase 9b · The brand's own sites
 

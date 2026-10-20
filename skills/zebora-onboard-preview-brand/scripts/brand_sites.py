@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Phase 9b: make the target brand's own sites right before the release chain. Dry run unless --go.
 
-1. Target website. Website enrichment looks the brand up by name, so a brand with sites in several
+1. Target website (and any primary competitor with no website, taken from its competitor record). Website enrichment looks the brand up by name, so a brand with sites in several
    countries can get the wrong one (Twinkl US got https://www.twinkl.co.uk/). This sets the website
    on the target's visibility_entity_brands / visibility_entities rows and the company record to the
    brand's PRIMARY url from brands.urls (the --url given at setup).
@@ -117,6 +117,18 @@ def main() -> None:
                 {"u": primary, "i": b["company_entity"]},
             )
         print(f"target website: {len(wrong)} row(s) set to {primary}" if wrong else "target website already right")
+        # primaries enrichment missed: take the url from their competitor record (Twinkl US, Lavazza)
+        filled = c.execute(
+            text(
+                "UPDATE visibility_entity_brands v SET website = comp.url FROM competitors comp, competitors_primary cp "
+                "WHERE v.brand_id = CAST(:b AS uuid) AND comp.brand_id = v.brand_id AND comp.name = v.name "
+                "AND cp.competitor_id = comp.id AND cp.brand_id = v.brand_id AND coalesce(v.website, '') = '' AND comp.url IS NOT NULL "
+                "RETURNING v.name"
+            ),
+            {"b": b["id"]},
+        ).scalars().all()
+        if filled:
+            print(f"primary websites filled from competitor records: {', '.join(filled)}")
         if a.add_owned and candidates:
             new = urls + [{"url": f"https://{r.d}/", "primary": False} for r in candidates if r.d not in owned_hosts]
             c.execute(
