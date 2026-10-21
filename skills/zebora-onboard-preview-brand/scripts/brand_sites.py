@@ -1,10 +1,15 @@
 #!/usr/bin/env python3
 """Phase 9b: make the target brand's own sites right before the release chain. Dry run unless --go.
 
-1. Target website (and any primary competitor with no website, taken from its competitor record). Website enrichment looks the brand up by name, so a brand with sites in several
+1. Target website. Website enrichment looks the brand up by name, so a brand with sites in several
    countries can get the wrong one (Twinkl US got https://www.twinkl.co.uk/). This sets the website
    on the target's visibility_entity_brands / visibility_entities rows and the company record to the
    brand's PRIMARY url from brands.urls (the --url given at setup).
+1b. Primary competitors' websites. Enrichment matches competitors by name too, so a name shared with
+   another company gets that company's site: Lavazza's Sage (the coffee machines) got
+   https://www.sage.com/, the accountancy software. Any primary whose website is empty or on a
+   different host from its competitor record (competitors.url, from the primaries the user
+   confirmed) is set to that url, on its visibility_entity_brands row and its visibility_entities rows.
 2. Owned domains. A cited URL counts as the brand's own only when its domain (or a subdomain) is in
    brands.urls. Lists the cited domains for the batch that contain the brand's name but are not owned
    (help centres, other-country sites: twinkl.zendesk.com, twinkl.com.br, twinkl.fr). With
@@ -70,6 +75,17 @@ def main() -> None:
             ),
             {"b": b["id"]},
         ).all()
+        # primaries whose website is empty or on another host than their competitor record
+        prim = c.execute(
+            text(
+                "SELECT v.id, v.name, v.website, comp.url FROM visibility_entity_brands v "
+                "JOIN competitors comp ON comp.brand_id = v.brand_id AND comp.name = v.name "
+                "JOIN competitors_primary cp ON cp.competitor_id = comp.id AND cp.brand_id = v.brand_id "
+                "WHERE v.brand_id = CAST(:b AS uuid) AND coalesce(comp.url, '') <> '' "
+                "AND normalize_host(coalesce(v.website, '')) IS DISTINCT FROM normalize_host(comp.url) ORDER BY v.name"
+            ),
+            {"b": b["id"]},
+        ).all()
         token = re.sub(r"[^a-z0-9]", "", b["target"].lower())
         owned_hosts = {re.sub(r"^https?://", "", u["url"]).split("/", 1)[0].lower() for u in urls}
         cited = c.execute(
@@ -88,6 +104,12 @@ def main() -> None:
     for r in dims:
         print(f"  target {r.kind:6s} {r.name}: website {r.website or '(none)'}")
     print(f"  {len(wrong)} target row(s) to set to {primary}" if wrong else "  target website already right")
+    if prim:
+        print("primary competitor websites that differ from their competitor record:")
+        for r in prim:
+            print(f"  {r.name}: {r.website or '(none)'} -> {r.url}")
+    else:
+        print("  primary competitor websites match their competitor records")
     print(f"owned domains in brands.urls: {sorted(owned_hosts)}")
     if candidates:
         print("cited domains containing the brand name but NOT owned (review before --add-owned):")
@@ -117,18 +139,22 @@ def main() -> None:
                 {"u": primary, "i": b["company_entity"]},
             )
         print(f"target website: {len(wrong)} row(s) set to {primary}" if wrong else "target website already right")
-        # primaries enrichment missed: take the url from their competitor record (Twinkl US, Lavazza)
-        filled = c.execute(
-            text(
-                "UPDATE visibility_entity_brands v SET website = comp.url FROM competitors comp, competitors_primary cp "
-                "WHERE v.brand_id = CAST(:b AS uuid) AND comp.brand_id = v.brand_id AND comp.name = v.name "
-                "AND cp.competitor_id = comp.id AND cp.brand_id = v.brand_id AND coalesce(v.website, '') = '' AND comp.url IS NOT NULL "
-                "RETURNING v.name"
-            ),
-            {"b": b["id"]},
-        ).scalars().all()
-        if filled:
-            print(f"primary websites filled from competitor records: {', '.join(filled)}")
+        # primaries enrichment missed or got wrong: take the url from their competitor record
+        # (empty: Twinkl US, Lavazza; same-name company: Lavazza's Sage got sage.com)
+        for r in prim:
+            c.execute(
+                text("UPDATE visibility_entity_brands SET website = :u, updated_at = now() WHERE id = :i"),
+                {"u": r.url, "i": r.id},
+            )
+            c.execute(
+                text(
+                    "UPDATE visibility_entities SET website = :u, updated_at = now() WHERE brand_id = CAST(:b AS uuid) "
+                    "AND entity_brand_id = :i AND normalize_host(coalesce(website, '')) IS DISTINCT FROM normalize_host(:u)"
+                ),
+                {"u": r.url, "b": b["id"], "i": r.id},
+            )
+        if prim:
+            print(f"primary websites set from competitor records: {', '.join(r.name for r in prim)}")
         if a.add_owned and candidates:
             new = urls + [{"url": f"https://{r.d}/", "primary": False} for r in candidates if r.d not in owned_hosts]
             c.execute(

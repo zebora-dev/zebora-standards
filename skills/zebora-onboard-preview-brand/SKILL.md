@@ -262,12 +262,13 @@ Add `-H "X-API-Key: ..."` if the key has been enforced since ZEB-796.
 
 ```bash
 $PY_DB $SKILL/brand_sites.py --slug <slug>                      # report
-$PY_DB $SKILL/brand_sites.py --slug <slug> --go                 # set the target website to the brand's primary url
+$PY_DB $SKILL/brand_sites.py --slug <slug> --go                 # set the target's and primaries' websites
 $PY_DB $SKILL/brand_sites.py --slug <slug> --go --add-owned     # also count the listed brand-named domains as owned
 ```
 
 Run this after Phases 8 and 9, before the release chain.
 - **Target website.** Enrichment looks the brand up by name, so a brand with sites in several countries can get the wrong one: Twinkl US got `twinkl.co.uk`. The script sets the target's website (dimension rows and company record) to the primary url from setup.
+- **Primary competitors' websites.** Enrichment matches competitors by name too, so a name shared with another company gets that company's site. Lavazza's Sage (the coffee machines) got `sage.com`, the accountancy software, and the dashboard showed it next to the competitor. The script lists any primary whose website is empty or on a different host from its competitor record (`competitors.url`, from the primaries the user confirmed), and `--go` sets it to that url. Read the list: a same-host difference such as a country path isn't flagged.
 - **Owned domains.** A citation counts as the brand's own only if its domain is in `brands.urls`. The script lists cited domains that contain the brand name but aren't owned, such as the help centre or other-country sites (Twinkl US: `twinkl.zendesk.com`, `twinkl.com.br`, `twinkl.fr`). **Confirm the list with the user, then pass `--add-owned`.** A domain containing the name isn't always the brand's.
 
 ## Phase 10 · The release chain (refresh, summaries, readiness)
@@ -384,7 +385,7 @@ Save a memory note with the ids, decisions and gotchas. List what is not done:
 - [ ] every active output has exactly one active score row
 - [ ] a stored-row backup exists under `$ZEBORA_BACKUP_ROOT`
 - [ ] entity dims seeded, with no near-duplicate brand rows
-- [ ] websites enriched and URLs classified, target website and owned domains checked (`brand_sites.py`), **then** the release chain
+- [ ] websites enriched and URLs classified, target website, primaries' websites and owned domains checked (`brand_sites.py`), **then** the release chain (its `entity_refresh` copies the websites into the views, per batch: refreshing one brand's batch does not update another's)
 - [ ] release chain finished, and readiness recorded as a pass (preview profile) or with agreed waivers
 - [ ] summaries reviewed and approved by the user
 - [ ] `go_live.py --apply` run with the user's name; brand `live`; not in the weekly pool
