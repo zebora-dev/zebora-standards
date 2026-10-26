@@ -1,6 +1,6 @@
 ---
 name: zebora-deck-refresh
-description: Re-skin and restructure an existing Google Slides deck into the Zebora brand without changing its copy. Makes a copy (never edits the master), rebuilds every slide with the website's look (Deep Field + Signal Green, signal-wave backgrounds, Inter, cards, icon badges, process flows), verifies the copy word-for-word, uploads it as native Google Slides and checks Google's own render. Also builds slide imagery (tilted dashboards with floating cards, screenshot collages, browser-window cut-outs) and swaps single slides or images into a live deck without losing hand edits. Triggers on: re-skin deck, restyle deck, brand refresh, deck redesign, creds deck, make this deck on-brand, improve the look of this presentation, Google Slides styling, better slide image, process flow slide.
+description: Re-skin and restructure an existing Google Slides deck (or a plain one-page Google Doc) into the Zebora brand without changing its copy. Makes a copy (never edits the master), rebuilds every slide with the website's look (Deep Field + Signal Green, signal-wave backgrounds, Inter, cards, icon badges, process flows), verifies the copy word-for-word, uploads it as native Google Slides and checks Google's own render. Also builds slide imagery (tilted dashboards with floating cards, screenshot collages, browser-window cut-outs) and swaps single slides or images into a live deck without losing hand edits. Also turns a plain one-page Google Doc into a designed PDF plus light and dark editable Google Docs. Triggers on: re-skin deck, one-pager, brand this doc, format this document, restyle deck, brand refresh, deck redesign, creds deck, make this deck on-brand, improve the look of this presentation, Google Slides styling, better slide image, process flow slide.
 ---
 
 # zebora-deck-refresh — re-skin a deck into the Zebora brand
@@ -110,6 +110,8 @@ Always `livecheck` the live deck against your last build first.
 - **Hand edits found:** paste only the changed slide or image (`references/drive-workflow.md`), and
   copy the user's positions into the build script with a comment so a future rebuild keeps them.
 - **New imagery:** `scripts/image_recipes.py` (`tilt`, `collage`, `cutout`). Preview first (rule 6).
+- **One-page documents** (event outlines, service sheets): `references/onepager.md`. Designed PDF plus
+  light and dark editable Google Docs from one content file, with a word-for-word check.
 - **"Copy this slide and try a better X":** build a standalone one-slide script
   (`examples/process-flow.slide.js`) and paste it in after the original, leaving the original alone.
 
@@ -120,9 +122,12 @@ scripts/brand_assets.js    backgrounds + logos                     -> ./bg ./ass
 scripts/lib.js             pptxgenjs helpers and brand tokens
 scripts/deck_tools.py      decode | dump | render | textcheck | livecheck | extract
 scripts/image_recipes.py   tilt | collage | cutout
+scripts/onepager.py        pdf | docx [--dark] | check   (one-page documents)
 references/patterns.md     slide patterns, sizes that fit, design rules
 references/drive-workflow.md  upload, convert, paste-a-slide, paste-an-image, known failure modes
+references/onepager.md     one-page PDF + editable Google Docs
 examples/                  vitruvian-geo.build.js (uses lib.js) · process-flow.slide.js (standalone)
+                           onepager.content.json (placeholder shape for onepager.py)
                            creds-agencies.build.js (first deck, pre-lib; reference only)
 assets/                    zebora-logo.svg, google.svg, openai.svg
 ```

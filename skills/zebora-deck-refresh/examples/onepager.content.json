@@ -1,0 +1,23 @@
+{
+  "_note": "Placeholder copy showing the shape. Paste the client's copy in verbatim; 4 grid items, one with highlight:true. quote_after = how many intro paras come before the quote box in the editable doc.",
+  "meta": "Hosted by <Partner> | Delivered by Zebora | <Duration> <format>",
+  "title": "<Document title>",
+  "subtitle": "<One-line subtitle>",
+  "intro": {
+    "label": "The opportunity",
+    "paras": ["<Intro paragraph one.>", "<Intro paragraph two.>", "<Intro paragraph three.>"],
+    "quote": "<The question or claim to pull out as a highlighted quote?>",
+    "quote_after": 2
+  },
+  "grid": {
+    "label": "What we'll cover",
+    "items": [
+      {"num": "01.", "title": "<Topic one>", "body": ["<One or two sentences.>"]},
+      {"num": "02.", "title": "<Topic two>", "body": ["<One or two sentences.>"]},
+      {"num": "03.", "title": "<Topic three>", "body": ["<One or two sentences.>"]},
+      {"num": "04.", "title": "<Topic four, the payoff>", "body": ["<Lead-in, including:>"], "bullets": ["<Point one.>", "<Point two.>", "<Point three.>"], "highlight": true}
+    ]
+  },
+  "takeaways": {"label": "Practical takeaways", "lead": "Attendees will leave with:", "items": ["<Takeaway one.>", "<Takeaway two.>", "<Takeaway three.>", "<Takeaway four.>"]},
+  "about": {"label": "About Zebora", "paras": ["Zebora is a specialist GEO consultancy and technology platform helping businesses understand why they're being recommended in AI, why they're missing out and what to do about it."]}
+}
