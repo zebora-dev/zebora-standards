@@ -46,6 +46,7 @@ Invoke with `/<skill-name> <args>` in Claude Code.
 | `zebora-batch-release` | Monthly batch release runbook — the ordered SOP from weekly capture and automatic scoring through the weekly health check, visibility and URL reviews, refreshes, PR module, summaries, readiness gate, go-live and the monthly report email. Orchestrates the two skills below. |
 | `zebora-scoring-url` | Citation/URL Checker (UCC) — reporting-only QA for the URL scoring pipeline (completeness, cross-path reconciliation, suspect domains, duplication, classification coverage, learned-baseline drift). |
 | `zebora-deck-refresh` | Re-skin and restructure a Google Slides deck into the Zebora brand without changing its copy: brand kit, slide patterns, copy and hand-edit checkers, image recipes, Drive upload/convert workflow. Needs `npm install` + `pip3 install -r requirements.txt` in the skill folder on first use. |
+| `ratemyprompts-voice` | Draft or review RateMyPrompts copy in the brand's tone of voice (v1.1): house-rules checker (count rule, British English, no em dashes, banned SaaS words), the `zebora-ai-tells` score and the five-question writing test, by context (site, scorecard, Reddit, LinkedIn, email). |
 
 Other pipeline skills (`zebora-ops`, `zebora-batch-report`, …) can be migrated
 here in follow-up PRs.
