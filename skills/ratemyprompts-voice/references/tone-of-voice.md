@@ -149,14 +149,14 @@ Avoid trying to become a comedy brand, relying on memes, or mocking people for p
 
 ## 5. What we sound like in practice
 
-| Generic SaaS language                                    | RateMyPrompts voice                                                          |
-| -------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| Ensure the integrity of your GEO measurement framework.  | Great dashboard. But are you asking the right questions?                     |
-| Prompt quality is critical to measurement accuracy.      | Bad prompts in. Questionable numbers out.                                    |
-| Automated prompt generation has limitations.             | Generating 1,000 prompts is easy. Generating 1,000 good ones? Not so much.   |
-| Identify opportunities to optimise prompt quality.       | Find out what's wrong with your prompts. And what to do about it.            |
-| Gain actionable insights into prompt performance.        | Know what's working, what's not and what needs fixing.                       |
-| Access our comprehensive prompt quality assessment.      | Give your prompts a reality check.                                           |
+| Generic SaaS language                                   | RateMyPrompts voice                                                        |
+| ------------------------------------------------------- | -------------------------------------------------------------------------- |
+| Ensure the integrity of your GEO measurement framework. | Great dashboard. But are you asking the right questions?                   |
+| Prompt quality is critical to measurement accuracy.     | Bad prompts in. Questionable numbers out.                                  |
+| Automated prompt generation has limitations.            | Generating 1,000 prompts is easy. Generating 1,000 good ones? Not so much. |
+| Identify opportunities to optimise prompt quality.      | Find out what's wrong with your prompts. And what to do about it.          |
+| Gain actionable insights into prompt performance.       | Know what's working, what's not and what needs fixing.                     |
+| Access our comprehensive prompt quality assessment.     | Give your prompts a reality check.                                         |
 
 The aim isn't always to be shorter or punchier. It's to be clearer, more interesting and more human.
 
@@ -244,14 +244,14 @@ Not part of the tone of voice document. These are standing decisions that apply 
 
 **Words we use for the product (match the live site)**
 
-| Use                                                  | Not                                                   |
-| ---------------------------------------------------- | ----------------------------------------------------- |
-| prompt set, prompts                                  | prompt library, query list                            |
-| overall score, scores and assessment, scorecard      | grade, letter grade, rating (in user-facing copy)     |
-| our analysts review every set                        | AI-powered analysis, automated audit                  |
-| founding places (lead with the total: "50 founding places") | slots, spots, seats                            |
-| the waitlist                                         | the queue                                             |
-| GEO measurement, AI visibility tracking              | AI SEO hacks, ranking in ChatGPT                      |
+| Use                                                         | Not                                               |
+| ----------------------------------------------------------- | ------------------------------------------------- |
+| prompt set, prompts                                         | prompt library, query list                        |
+| overall score, scores and assessment, scorecard             | grade, letter grade, rating (in user-facing copy) |
+| our analysts review every set                               | AI-powered analysis, automated audit              |
+| founding places (lead with the total: "50 founding places") | slots, spots, seats                               |
+| the waitlist                                                | the queue                                         |
+| GEO measurement, AI visibility tracking                     | AI SEO hacks, ranking in ChatGPT                  |
 
 **Rules that are not negotiable**
 
