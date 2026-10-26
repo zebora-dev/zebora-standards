@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org).
 
 ### Added
 
+- **`skills/zebora-deck-refresh`: one-page documents** — `scripts/onepager.py` builds a designed dark
+  A4 PDF and light and dark editable Google Docs (via .docx and File → Save as Google Docs) from one
+  content file, with a word-for-word copy check. Guide in `references/onepager.md`.
+
 - **`skills/zebora-onboard-preview-brand`** (ZEB-1050) — onboard a demo / preview brand from a
   prompt sheet to a live dashboard: setup, DataForSEO extraction, context, fan-out scoring, review,
   stored-row corrections, entity dims, enrichment, URL classification, then the shared release

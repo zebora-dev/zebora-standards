@@ -2,3 +2,4 @@ python-pptx
 PyMuPDF
 Pillow
 numpy
+python-docx
