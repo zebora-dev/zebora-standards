@@ -188,6 +188,16 @@ What should happen with no manual steps:
 3. Each saved output is scored: visibility, sentiment, URLs and output QA.
 4. The pool run is marked completed.
 
+**The pool captures only the measurements in `brands.visibility_pool_measurements`.** For every pool
+brand that is `["Visibility"]` (Nov 2026), so Sentiment and Brand Scorecard prompts are **not**
+captured weekly. Big Potato went live on 4 Nov 2026 with empty Sentiment and Scorecard pages and was
+rolled back. Until the monthly capture is decided, capture them once a month outside the pool, as on
+4 Nov: through prompt-extractor (`zebora` remote, `main`), with `measurements_filter` passed as a list
+(`["Sentiment", "Brand Scorecard"]`) and no pool run. Use September's surfaces: Scorecard on gpt only,
+Sentiment on gpt and Google AI Overview. Then score the outputs, and start the month-end chain from
+`entity_refresh`, because visibility-v3 also scores Sentiment prompts. The readiness "Measurements"
+line blocks go-live until this is done.
+
 **State on 6 Oct 2026:** capture is manual for now (pool runs are started by hand, so the ongoing
 brands are set to capture `manual`), scoring is not automatic (every September run had `score_on_complete`
 off), the capture and scoring workers are stopped, and two identical insert triggers on
@@ -297,6 +307,7 @@ shows this), and that "Brand presence coverage" fills in once a logged-in user o
 | Capture | Pool runs | Fewer completed runs than `pool_runs_expected`, or an LLM surface under 90% of its prompts |
 | Scoring | Scoring, Model labels, Scoring model, Metrics views | Anything unscored; a bad label; mixed scoring models or context versions; views behind the scores |
 | Visibility | Unmatched names, Target brand, Visibility figures | Unmatched above 5%; target-brand exceptions above 2% of answers; visibility above 100% |
+| Measurements | Measurements | The brand has active Sentiment or Brand Scorecard prompts with no output in the batch (they are outside the weekly pool, see Stage 1), or answered but nothing in `scores_sentiment_summary` / `scores_brand_pillar_summary`; skipped for a preview |
 | URLs | URL view, URL labels, Junk citations | Dashboard view differs from the source; over 5% unclassified; thumbnail rows present |
 | PR | PR module | A blocking `compute_pr_batch_readiness` check is incomplete (coverage excepted); skipped when the module is off |
 | Summaries | Summaries | Fewer than 12 active, or written before the latest scoring |
