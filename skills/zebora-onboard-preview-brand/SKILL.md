@@ -1,6 +1,6 @@
 ---
 name: zebora-onboard-preview-brand
-description: "Onboard a new Zebora demo / preview brand end to end, from a prompt sheet to a live dashboard. Steps: create the brand, batch, prompts and weightings; extract via DataForSEO (no workers); build the visibility context; score with the parallel fan-out dispatcher; review with zebora-scoring-train; correct stored entities instead of re-scoring; seed entity dimensions; enrich websites; classify URLs; run the release chain (refresh, summaries, readiness with the preview profile); review summaries; go live. Use when the user says 'new demo brand', 'preview brand', 'run X through the system like TransUnion / Twinkl / Smart Energy GB', or gives a brand + URL + prompt sheet to set up. Encodes which tool to use at each step and the gotchas that cost time on the Twinkl run."
+description: "Onboard a new Zebora demo / preview brand end to end, from a prompt sheet to a live dashboard. Steps: create the brand, batch, prompts and weightings; extract via DataForSEO (no workers); build and train the visibility context with zebora-scoring-train (sandbox, sets of 10, then promote v1); score with the parallel fan-out dispatcher; post-score check; correct stored entities instead of re-scoring; seed entity dimensions; enrich websites; classify URLs; run the release chain (refresh, summaries, readiness with the preview profile); review summaries; go live. Use when the user says 'new demo brand', 'preview brand', 'run X through the system like TransUnion / Twinkl / Smart Energy GB', or gives a brand + URL + prompt sheet to set up. Encodes which tool to use at each step and the gotchas that cost time on the Twinkl run."
 user-invokable: true
 argument-hint: "<brand name> <url> <prompt sheet url or file>"
 ---
@@ -16,7 +16,7 @@ Background:
 - Tickets: ZEB-1044 to ZEB-1053, ZEB-1086 (readiness profile)
 
 **This skill orchestrates; it does not replace these skills.** Call them at the marked points:
-- `zebora-scoring-train` (accuracy review)
+- `zebora-scoring-train` (builds and trains the context before scoring)
 - `zebora-scoring-vec` (entity QA)
 - `zebora-scoring-url` (URL QA)
 - `zebora-batch-release` (the release chain it shares with pool brands)
@@ -25,7 +25,7 @@ Background:
 
 - Run **one phase at a time**, print a short summary, then continue. Stop and ask only at the marked **GATE** points.
 - These always need the user:
-  - **policy decisions** in the context review (Phase 5)
+  - **target, primaries and policy decisions** in context training (Phase 3)
   - **anything that changes production cost** (scaling or starting workers)
   - **anything a prospect will see before it is reviewed** (summaries, Phase 11)
   - **the go-live switch** (Phase 13)
@@ -70,7 +70,7 @@ Install: `ln -s <workspace>/zebora-standards/skills/zebora-onboard-preview-brand
 ## Target order (this is what saves the time)
 
 ```
-0 prompts file  ->  1 setup  ->  2 extract  ->  3 context v1  ->  4 score (fan-out)  ->  5 review (scoring-train)
+0 prompts file  ->  1 setup  ->  2 extract  ->  3 train context (scoring-train)  ->  4 score (fan-out)  ->  5 post-score check
  ->  6 stored-row corrections  ->  7 seed entity dims  ->  8 enrich websites  ->  9 classify URLs  ->  9b brand sites
  ->  10 release chain (refresh + summaries + readiness)  ->  11 review summaries  ->  12 verify  ->  13 go live + hand-off
 ```
@@ -130,12 +130,11 @@ This submits GPT and GAO to the DataForSEO Standard queue without a pingback, th
 
 Google shows no AI Overview for some searches. Those outputs come back empty with `metadata.ai_overview = false`, and the script deactivates them at the end, with `deactivated_reason` recorded. That's 2 of 54 for Twinkl UK and 13 of 54 for Twinkl US, so expect more in the US. They aren't answers, and scoring them would count the target as "not visible". The readiness Capture line only warns below 50%.
 
-## Phase 3 · Context v1 and the primary tier
+## Phase 3 · Train the context: `zebora-scoring-train` (GATE: target, primaries, policy decisions)
 
-```bash
-$PY_DB $SKILL/create_context.py --config context.json            # dry run
-$PY_DB $SKILL/create_context.py --config context.json --go
-```
+Run `/zebora-scoring-train <batch_id>`. It builds draft d0 from `context.json` and the nearest existing context, reads the first 10 outputs for themes, then scores sets of 10 in a sandbox (nothing saved) and iterates over 3–5 fresh sets until first-pass accuracy holds at 90% or more. It ends by promoting the draft to **context v1, together with the primary tier** (`promote_context.py --with-primaries`). Do not score the batch before that.
+
+`create_context.py` writes v1 straight to the database without training. Use it only if the user explicitly skips training. Its `context.json` is the same file scoring-train uses as `--template`.
 
 `context.json` supplies (see `examples/twinkl_context.json`):
 - the category description
@@ -155,7 +154,7 @@ $PY_DB $SKILL/create_context.py --config context.json --go
 - local authorities and shops are out
 - `entity_type` is never `unknown`
 
-**Primary tier:** pick the most-named competitors across the extracted responses, counting how many prompts name each. Ignore citation noise (e.g. `utm_source=chatgpt.com` makes "ChatGPT" look universal) and tools the rules exclude. **Flag the tier as provisional** in `metadata.notes`, and confirm it with the user at the Phase 5 gate.
+**Primary tier:** pick the most-named competitors across the extracted responses, counting how many prompts name each. Ignore citation noise (e.g. `utm_source=chatgpt.com` makes "ChatGPT" look universal) and tools the rules exclude. It stays provisional in the draft (`draft.json` `primaries`) until the user confirms it at the scoring-train Phase 1 gate.
 
 If the brand already has a preview in another market, ask whether to add that market's primaries too, so the two dashboards line up. Twinkl US kept its 8 and added the UK 8, for 16 in total. To change primaries after Phase 3:
 1. Insert `competitors` and `competitors_primary` rows (next `order`).
@@ -163,6 +162,8 @@ If the brand already has a preview in another market, ask whether to add that ma
 3. Re-run `apply_corrections.py --go` so the stored rows are re-tagged.
 
 ## Phase 4 · Score with the fan-out dispatcher
+
+Only after scoring-train has promoted v1. Every output is then scored under one trained version.
 
 ```bash
 # all active output ids for the batch (read-only SQL), then:
@@ -176,20 +177,15 @@ curl -s -X POST https://brand-score-api.fly.dev/api/workflows/score-single-outpu
   - The pool limit is 40 and each worker runs `--limit 5`, so 8 workers fill it.
   - Start: `fly machine start <id> -a brand-score-worker`. Scale: `fly scale count 8 --app brand-score-worker`.
   - **Starting or scaling workers changes production cost, so ask the user first.** Report the worker count you saw online, and stop the workers afterwards if they were stopped before.
-- **Score in stages.** Don't score the whole batch first. Score 10, and start the review while the rest runs (scoring-train Phase 0a).
 - **Catch stragglers.** Finish by listing active outputs that have no active score row, and submit those individually (`output_id` as a string). A batch flow can complete with an output still unscored.
 - **No forced re-scores mid-run.** Never force a re-score of an output while a batch flow is running.
 
-## Phase 5 · Review: `zebora-scoring-train` (GATE: policy decisions)
+## Phase 5 · Post-score check
 
-Run `/zebora-scoring-train <batch_id>`. Auto-review the clear cases, and escalate only policy calls, each with a recommendation. Reuse precedents instead of re-asking. Decisions that typically come up:
-- Are general AI assistants extractable?
-- Are advice or evidence bodies providers?
-- Exam boards, bare book titles, admin software, heritage bodies
-
-Apply approved changes as a new context version: copy the previous version, change the rules, and set the old one to `active=false`. Never write without the user's confirmation. **Do not re-score to apply them** (see Phase 6).
-
-Expect the scorer's known weaknesses: long lists lose items, exclusion rules are ignored, and runs vary. A passing QA verdict does not prove recall.
+Training settled the policy questions, so this is a short check of the full batch:
+- Run `$PY_DB $SKILL/status.py --batch <id>` for scored and QA counts. Read the QA `review` / `fail` outputs.
+- Look for patterns the training sets did not contain. If one is systematic, run another scoring-train set (`/zebora-scoring-train next <batch_id>`) and promote v2 before correcting rows. Don't re-score the batch.
+- Expect the scorer's known weaknesses: long lists lose items, exclusion rules are ignored, and runs vary. A passing QA verdict does not prove recall. Phase 6 fixes the rows.
 
 ## Phase 6 · Correct the stored rows (instead of re-scoring)
 
