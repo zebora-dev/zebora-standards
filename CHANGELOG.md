@@ -6,6 +6,18 @@ and this project adheres to [Semantic Versioning](https://semver.org).
 
 ## [Unreleased]
 
+### Fixed
+
+- **`zebora-onboard-preview-brand`** — `seed_entity_dims.py` no longer turns a raw name that is a
+  canonical brand into an alias (on Edison Group a corrected row made "Edison Group" an alias of
+  Stockopedia and hid the target). `apply_corrections.py` adds `type_by_brand` (one entity type per
+  organisation). The skill now documents the credentials that changed since it was written: the
+  API's `X-API-Key`, `BRANDSIGHT_SUPABASE_ANON_KEY` for AI Overview ingestion, and
+  `PREFECT_API_AUTH_STRING` for a local release chain; and that `status.py` under-reports URL labels.
+- **`zebora-scoring-train`** — `compare_runs.py` counts a wrong-type row as fixed when its role
+  fields change and a wrong-context row when its evidence changes (it reported them as still wrong);
+  `discover.py` unescapes HTML entities and strips list numbering from candidate names.
+
 ### Added
 
 - **`skills/zebora-scoring-train`** — builds and trains a brand's visibility-v3 prompt context

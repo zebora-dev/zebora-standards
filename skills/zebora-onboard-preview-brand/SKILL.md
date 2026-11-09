@@ -52,6 +52,12 @@ PIPE=${ZEBORA_PIPELINE:-<workspace>/brand_score_pipeline}
 PY_DB=$PIPE/.venv/bin/python        # run the skill scripts with this
 ```
 
+**Credentials that changed in Oct–Nov 2026** (Edison Group, 9 Nov 2026; never print or save any of them):
+- **brand-score-api needs `X-API-Key`** on every workflow endpoint (Phase 4 scoring, Phase 9 classification, Phase 10 release). The value is `API_KEY` in the pipeline `.env`; without it the API returns 403.
+- **AI Overview ingestion needs `BRANDSIGHT_SUPABASE_ANON_KEY`** as well as the service key. Without it the AI Overview tasks stay pending and nothing says why.
+- **Production Prefect needs `PREFECT_API_AUTH_STRING`** (basic auth), which is not in the local `.env`. For a local release chain, read it at runtime from a worker and pass it to that one process: `PREFECT_API_AUTH_STRING="$(fly ssh console -a brand-score-worker -C 'printenv PREFECT_API_AUTH_STRING' | tr -d '\r' | tail -1)"`.
+- If `ZEBORA_EXTRACTION_REPO` has no `.env`, map the pipeline's `SUPABASE_URL` / `SUPABASE_SERVICE_KEY` to `BRANDSIGHT_SUPABASE_URL` / `BRANDSIGHT_SUPABASE_SERVICE_KEY` at runtime; the correction and dims scripts read those names too. `uv` is needed for the extraction venv (`brew install uv`).
+
 Install: `ln -s <workspace>/zebora-standards/skills/zebora-onboard-preview-brand ~/.claude/skills/zebora-onboard-preview-brand`.
 
 ## Use this, not that
@@ -201,7 +207,8 @@ The spec lists:
 - `remove_by_output`
 - `merge_by_output`
 - `add`: output, brand, entity type, text variants
-- `type_fix`
+- `type_fix`: one type to another everywhere (`{"unknown": "research_provider"}`)
+- `type_by_brand`: one `entity_type` per canonical brand. The scorer types the same firm differently from answer to answer and ignores type rules in the context (Edison: brokers as research_provider, retail tools as platform), so set it once here. Applied after renames, before `type_fix`.
 
 The script:
 - backs up every row first, to `$ZEBORA_BACKUP_ROOT/<slug>_<date>/`
@@ -230,6 +237,8 @@ This mirrors TransUnion:
 
 Keys come from the SQL function `normalize_company_name`, never by hand. **Read the printed brand list for near-duplicates before `--go`** ("Widgit" and "Widgit Resources" slipped through on Twinkl).
 
+Aliases come from the stored rows' `raw_brand` / `raw_entity` and the context mappings. A raw name that is itself a canonical brand is skipped: on Edison a corrected row kept `raw_brand = "Edison Group"`, the alias "Edison Group" → Stockopedia hid the target in 32 answers and readiness failed on Target brand. If readiness reports new aliases that share no word with their target, read every one.
+
 ## Phase 8 · Enrich websites
 
 From the pipeline repo root (`cd $PIPE`, an up-to-date `main`):
@@ -248,7 +257,8 @@ curl -s -X POST https://brand-score-api.fly.dev/api/workflows/batch/url-classifi
   -H "Content-Type: application/json" -d '{"batch_id":"<batch>"}'      # then poll status; about 7 min
 ```
 
-Add `-H "X-API-Key: ..."` if the key has been enforced since ZEB-796.
+Send `-H "X-API-Key: $API_KEY"` (required since the 27 Oct 2026 pentest fix).
+- **Coverage check:** labels are per domain in `url_classification` (`type = 'domain'`), stored **without** `www.`. `status.py` compares the raw domain, so it under-reports (Edison: "107 of 306" while 97% of citations were labelled). Readiness reads the view and is right.
 - **Only after scoring has finished.** Classification labels the citations (`url_scores`) that scoring creates. On Lavazza it was started alongside scoring, "completed" in a minute with nothing to classify, and readiness then failed on 63% unclassified.
 - **It needs a worker** (deployment `url-classification-test` on `scoring-pool`). With no worker online the run sits in Late, so start one (cost GATE) or run it while the scoring workers are still up.
 - It can run in parallel with Phase 8, since they're independent.
@@ -294,7 +304,7 @@ curl -s -X POST https://brand-score-api.fly.dev/api/workflows/batch/release \
 
 `apply` returns **503 when no Prefect worker is online**. Start one first (cost GATE, as in Phase 4). It returns 409 while an earlier `apply` run for the batch, started under 6 hours ago, is still running.
 
-Or run it locally, with no worker needed. Set `PREFECT_API_URL=https://brand-score-prefect.fly.dev/api` first: the pipeline `.env` points at a local Prefect (`127.0.0.1:4200`), and the summaries step fails against it. It takes about 10 minutes, so run it detached:
+If the API says the `batch-release-chain` deployment is unavailable (Edison, 9 Nov 2026), run it locally. Set `PREFECT_API_URL=https://brand-score-prefect.fly.dev/api` and `PREFECT_API_AUTH_STRING` (see Setup) first: the pipeline `.env` points at a local Prefect (`127.0.0.1:4200`), and the summaries step fails against it. It takes about 10 minutes, so run it detached:
 
 ```bash
 cd $PIPE && nohup .venv/bin/python -u scripts/batch_release/release_chain.py --batch-id <batch> --apply > /tmp/release_<slug>.log 2>&1 &

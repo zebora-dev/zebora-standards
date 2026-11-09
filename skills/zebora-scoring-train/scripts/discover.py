@@ -16,6 +16,7 @@ It is a reading aid for spotting themes, not an extraction: read the responses t
 from __future__ import annotations
 
 import argparse
+import html
 import re
 import sys
 from collections import Counter, defaultdict
@@ -86,8 +87,9 @@ def main():
         text_ = clean_response(raw)
         for kind, pat in PATTERNS.items():
             for m in pat.findall(raw if kind == "link" else text_):
-                name = re.sub(r"\]\([^)]*\)", "", m)
+                name = re.sub(r"\]\([^)]*\)", "", html.unescape(m))
                 name = re.sub(r"[\\*#`\[\]]", "", name).strip(" :.-")
+                name = re.sub(r"^\d+[\.\)]\s*", "", name)
                 if len(name) < 2 or NOISE.match(name) or len(name.split()) > 6:
                     continue
                 k = norm(name)

@@ -14,6 +14,8 @@ Spec keys:
   remove_by_output {output_id: [names]}      per-output removals
   merge_by_output  {output_id: {alias: brand}}   per-output renames
   type_fix        {"unknown": "resource_provider"}
+  type_by_brand   {canonical brand: entity_type}  one type per organisation (the scorer types the same firm differently
+                  from answer to answer); applied after renames, before type_fix
   add             [{output_id, brand, entity_type, variants?[]}]   add a missed provider found in the response text
 Every changed row records metadata.manual_edits and each touched entity carries canonicalised.rule.
 A full backup of the batch's score rows is written to db_backup/<slug>_<date>/ before the first write.
@@ -159,6 +161,7 @@ def main():
         for k, v in spec.get("merge_by_output", {}).items()
     }
     TYPE_FIX = spec.get("type_fix", {"unknown": "resource_provider"})
+    TYPE_BY_BRAND = spec.get("type_by_brand", {})
     ADD = [
         (
             str(x["output_id"]),
@@ -213,6 +216,9 @@ def main():
                 e["brand"] = e["entity"] = new_b
                 e.update(flags(new_b))
                 e["canonicalised"] = note("manual_mapping")
+            if e["brand"] in TYPE_BY_BRAND and e.get("entity_type") != TYPE_BY_BRAND[e["brand"]]:
+                L["type_fixed"].append(e["brand"])
+                e["entity_type"] = TYPE_BY_BRAND[e["brand"]]
             if e.get("entity_type") in TYPE_FIX:
                 L["type_fixed"].append(e["brand"])
                 e["entity_type"] = TYPE_FIX[e["entity_type"]]

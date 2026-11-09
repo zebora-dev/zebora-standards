@@ -65,9 +65,10 @@ def main():
     fixed, regressed, still = [], [], []
     for r in labels:
         oid, k = int(r["output_id"]), (norm(r["brand"]), norm(r["entity"]))
-        in_new = k in new.get(oid, {}) or any(norm(r["entity"]) == ek[1] for ek in new.get(oid, {}))
-        role_same = k in new.get(oid, {}) and new[oid][k].get("competitor_type") == r.get("competitor_type")
+        old_row, new_row = old.get(oid, {}).get(k), new.get(oid, {}).get(k)
+        in_new = new_row is not None or any(norm(r["entity"]) == ek[1] for ek in new.get(oid, {}))
         if r["label"] == "ok":
+            role_same = new_row is not None and new_row.get("competitor_type") == r.get("competitor_type")
             if not (in_new and role_same):
                 regressed.append(r)
         elif r["label"] == "missing":
@@ -75,10 +76,19 @@ def main():
         elif r["label"] == "escalate":
             continue
         elif r["label"] == "wrong-type":
-            (fixed if in_new and not role_same else still).append(r)
-        else:  # noise, wrong-canon, wrong-context: fixed when that exact row is gone
-            (fixed if k not in new.get(oid, {}) else still).append(r)
+            # fixed when the row is still there and its entity_type / role changed
+            changed = new_row is not None and old_row is not None and any(
+                old_row.get(f) != new_row.get(f) for f in ROLE)
+            (fixed if changed else still).append(r)
+        elif r["label"] == "wrong-context":
+            # fixed when the evidence changed (or the row went: then check it is not a lost recommendation)
+            changed = new_row is None or old_row is None or (
+                old_row.get("source_text") != new_row.get("source_text"))
+            (fixed if changed else still).append(r)
+        else:  # noise, wrong-canon: fixed when that exact row is gone
+            (fixed if new_row is None else still).append(r)
     print(f"\nagainst labels: {len(fixed)} fixed, {len(regressed)} regressed, {len(still)} still wrong")
+    print("(wrong-type / wrong-context count as fixed when the field changed: check the new value is right)")
     for title, rows in (("regressed", regressed), ("still wrong", still), ("fixed", fixed)):
         for r in rows:
             print(f"  [{title}] {r['output_id']} {r['brand']} / {r['entity']} ({r['label']}) {r.get('note', '')}")
