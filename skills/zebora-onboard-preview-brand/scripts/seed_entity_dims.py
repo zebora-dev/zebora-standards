@@ -84,13 +84,17 @@ def main():
     for b, e in pairs:
         bclash[key(b)].add(b)
         eclash[key(e)].add((b, e))
+    # A raw name that is itself a canonical brand (the target, or another provider) is a scorer
+    # mis-attribution fixed by a correction, never a spelling. Edison 2026-11-09: a row with
+    # raw_brand "Edison Group" made "Edison Group" an alias of Stockopedia and hid the target.
+    canonical_keys = {key(b) for b, _ in pairs} | {key(e) for _, e in pairs}
     alias_rows = {}
     for pair, names in raws.items():
         if pair not in pairs:
             continue
         for n in names:
             k = key(n)
-            if k and k != key(pair[1]) and k not in alias_rows:
+            if k and k != key(pair[1]) and k not in alias_rows and k not in canonical_keys:
                 alias_rows[k] = (n, pair)
     print(
         f"{len(rows)} stored rows | brands {len(brands)} | entities {len(pairs)} | aliases {len(alias_rows)} | primaries {sorted(PRIMARY)}"

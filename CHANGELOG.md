@@ -6,8 +6,31 @@ and this project adheres to [Semantic Versioning](https://semver.org).
 
 ## [Unreleased]
 
+### Fixed
+
+- **`zebora-onboard-preview-brand`** — `seed_entity_dims.py` no longer turns a raw name that is a
+  canonical brand into an alias (on Edison Group a corrected row made "Edison Group" an alias of
+  Stockopedia and hid the target). `apply_corrections.py` adds `type_by_brand` (one entity type per
+  organisation). The skill now documents the credentials that changed since it was written: the
+  API's `X-API-Key`, `BRANDSIGHT_SUPABASE_ANON_KEY` for AI Overview ingestion, and
+  `PREFECT_API_AUTH_STRING` for a local release chain; and that `status.py` under-reports URL labels.
+- **`zebora-scoring-train`** — `compare_runs.py` counts a wrong-type row as fixed when its role
+  fields change and a wrong-context row when its evidence changes (it reported them as still wrong);
+  `discover.py` unescapes HTML entities and strips list numbering from candidate names.
+
 ### Added
 
+- **`skills/zebora-scoring-train`** — builds and trains a brand's visibility-v3 prompt context
+  before the batch is scored, rebuilt after the local-only original was lost with a failed laptop.
+  Draft d0 from the brand core and the nearest existing context (`draft_context.py`: `--list`,
+  `--template`, `--from-brand`, `--from-active`, `--copy`); discovery on the first 10 outputs
+  (`discover.py`); sandbox scoring of a draft with the pipeline's own scorer and QA, nothing written
+  (`sandbox_score.py`, `--repeat` to expose run-to-run noise); labelling, `train_report.py` and
+  `compare_runs.py` (fixed / regressed / still wrong against the previous draft's labels); 3–5 fresh
+  sets of 10 (`pick_set.py`, never reuses an output); then `promote_context.py` writes the draft as
+  v1 or version+1 in one transaction, optionally with the primary tier (dry run with a diff unless
+  `--go`). Training files live in the ops vault. Adds `references/precedents.md`, the confirmed
+  decisions from the TransUnion, Twinkl, Nationwide, Vuse, Big Potato and Talking Futures contexts.
 - **`skills/zebora-onboard-preview-brand`** (ZEB-1050) — onboard a demo / preview brand from a
   prompt sheet to a live dashboard: setup, DataForSEO extraction, context, fan-out scoring, review,
   stored-row corrections, entity dims, enrichment, URL classification, then the shared release
@@ -17,6 +40,10 @@ and this project adheres to [Semantic Versioning](https://semver.org).
 
 ### Changed
 
+- **`skills/zebora-onboard-preview-brand`** — Phase 3 now trains the context with
+  `zebora-scoring-train` (sandbox, sets of 10) and promotes v1 with the primary tier before the
+  batch is scored; Phase 5 becomes a short post-score check. `create_context.py` is kept for when
+  training is skipped.
 - **`skills/zebora-batch-release`, `zebora-scoring-vec`, `zebora-scoring-url`** — describe the
   refresh process as it is after ZEB-1059 and ZEB-1060 (15 October 2026): `refresh_url_scores_v1`
   takes about 2 minutes and no longer locks the dashboard; the chain has a `pr_payloads` step after
