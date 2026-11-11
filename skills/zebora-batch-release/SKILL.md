@@ -10,8 +10,8 @@ description: Monthly batch release runbook — the end-to-end SOP for taking a b
 One ordered process for a brand's monthly batch: **capture → score → check → review → refresh → PR
 module → summaries → readiness → go-live → report email**.
 
-Status: **draft v0.7 (6 Oct 2026)**, written from the September 2026 releases of Big Potato UK,
-Big Potato US and Nationwide.
+Status: **draft v0.8 (11 Nov 2026)**, written from the September 2026 releases of Big Potato UK,
+Big Potato US and Nationwide. v0.8 adds the month rollover after the W45 pool run was missed.
 
 ## How the process is held together
 
@@ -19,7 +19,7 @@ Four pieces, each with one job. Nothing here needs a schema change.
 
 | Piece | Its one job | Where it lives | State |
 |---|---|---|---|
-| **Scripts** | Run the checks and the mechanical steps the same way every time | `brand-score-pipeline/scripts/batch_release/` | Setup check, weekly check, settings, readiness, go-live, the month-end chain and the report-email check built |
+| **Scripts** | Run the checks and the mechanical steps the same way every time | `brand-score-pipeline/scripts/batch_release/` | Month rollover, setup check, weekly check, settings, readiness, go-live, the month-end chain and the report-email check built |
 | **Brand settings** | What is different about this brand, decided once | `brands.config.release` | Built; saved for Big Potato UK, Big Potato US and Nationwide |
 | **Release record** | Which stages have passed for this batch, when, and the key figures | `batches.batch_metadata.release` | Built; written by the checks with `--record` |
 | **This runbook** | The order, what each gate means, and what a human decides | this file | Draft |
@@ -36,6 +36,7 @@ and `--record` (save the result to the batch's release record — its only write
 
 | Stage | Command | State |
 |---|---|---|
+| 0 | `poetry run python scripts/batch_release/rollover.py --all-pool` (or `--brand <slug>`; `--month YYYY-MM`, default this month) — dry run; `--apply --by "<name>"` creates the month's batches and moves the pool (**writes**) | Built |
 | 0 | `poetry run python scripts/batch_release/preflight.py --all-pool` (or `--batch-id <id>`) | Built |
 | 2 | `poetry run python scripts/batch_release/weekly_check.py --all-pool` (or `--batch-id <id>`) | Built |
 | any | `poetry run python scripts/batch_release/brand_settings.py --list` — every active brand's engagement and pool enrolment | Built |
@@ -52,6 +53,7 @@ and `--record` (save the result to the batch's release record — its only write
 
 | Stage | When | Runs | A person decides |
 |---|---|---|---|
+| 0 · Month rollover | Month start, before the first Monday run | Script | **Approve the `--apply`** after reading the dry run |
 | 0 · Setup checks | Month start, and before each Monday run | Script | Only how to fix a failed line |
 | 1 · Capture and scoring | Weekly, usually four times | Scheduled flows | — |
 | 2 · Weekly check | After each pool run | Script | Week 1: entity and alias fixes. Later weeks: only if a line fails |
@@ -142,13 +144,42 @@ their engagement and one or two notes saved; the rest of their settings are defa
 ## Release record (`batches.batch_metadata.release`)
 
 One entry per stage, latest result only: `{status, at, by, failed, warned, figures}`. The checks
-write `setup_check`, `weekly_check` and `readiness` when run with `--record`; go-live writes
+write `setup_check`, `weekly_check` and `readiness` when run with `--record`; the rollover writes
+`rollover` on each batch it creates (source batch, weightings copied, who ran it); go-live writes
 `go_live` with the values it replaced. Waivers sit beside the stages: `{reason, by, at}` per line. The record carries its batch id, because creating a batch from last month's copies
 `batch_metadata`: a record with another batch's id is discarded. Scripts write it; the readiness and go-live
 commands read it. It makes a release resumable (anyone can see where a batch is) and auditable
 (what was decided and when). The go-live rollback record is stored here too.
 
 ---
+
+## Stage 0 · Month rollover
+
+`rollover.py`. At the start of each month, before the first weekly pool run. It creates the
+month's batch for every brand in the weekly pool and points `brands.visibility_pool_batch_id` at it.
+The live batch (`brands.batch_id`) is not touched; that is go-live. In W45 2026 this step was missed
+and the pool kept capturing into the October batches until preflight caught it on 11 Nov.
+
+1. Dry run: `rollover.py --all-pool`. One table per brand:
+
+   | Line | Result |
+   |---|---|
+   | Engagement | SKIP when the brand is not ongoing and pool-captured (`brands.config.release.engagement`) |
+   | Weekly pool | SKIP when not enrolled; FAIL when the pool points at no batch |
+   | Target month | PASS "already rolled over" when the month's batch exists and the pool is on it (nothing to do); FAIL when it exists but the pool is elsewhere, or the pool is already on a later month |
+   | Source batch | FAIL unless the pool's batch is last month's |
+   | Weightings | FAIL when the source has no category, tag or model weightings |
+   | Rollover | WARN "would create …" — the brand still needs rolling over |
+
+2. Fix any FAIL at the source batch, then `rollover.py --all-pool --apply --by "<name>"`. Each
+   brand is one transaction: the new batch, its weightings and the pool move land together or not
+   at all. A second run reports nothing to do.
+3. The new batch is named "<Mon> - YYYY", dated the 1st, with `report_month` the following 1st. It
+   copies last month's description, type, config (`report_date` moved on), surfaces, versions,
+   region and dashboard type. It starts `paused` and unapproved with no copied release record.
+4. After `--apply` the setup checks run for each new batch and print beneath the rollover lines.
+   Go on to the setup checks below for anything they flag. Until the first pool run of the month,
+   "Automatic scoring" warns that no pool run exists yet; that is expected.
 
 ## Stage 0 · Setup checks
 
@@ -157,7 +188,7 @@ commands read it. It makes a release resumable (anyone can see where a batch is)
 | Line | Fails when | Fix |
 |---|---|---|
 | Batch | Not dated the 1st, no `report_month`, or two batches for the month | Correct the batch |
-| Weekly pool | Pool points at another batch, or still at last month's | Create this month's batch and point the pool at it |
+| Weekly pool | Pool points at another batch, or still at last month's | Run the month rollover (above) |
 | Prompts | No active visibility prompts | — |
 | Model weightings | No rows, a captured surface has no weight, or weights do not sum to 1 | Copy from last month, adjust for surfaces |
 | Category weights | A prompt category has no weight (Sep: "Use Case" against "Use Cases" dropped 24% of the weighting) | Rename or add |
@@ -168,8 +199,10 @@ commands read it. It makes a release resumable (anyone can see where a batch is)
 | Automatic scoring | Warns when the latest pool run has `score_on_complete` off | See Stage 1 |
 | Capture workers, Scoring workers | The Prefect work pool has no worker online | Start the workers |
 
-**Fix at source:** batch creation should copy category weights, tag weights, model weightings and
-versions from the previous month, and move the pool to the new batch, in one step.
+**Fixed at source:** `rollover.py` creates the month's batch with last month's category, tag and
+model weightings and versions, and moves the pool onto it, in one step (Stage 0 · Month rollover).
+The API's `POST /api/batches/new` still dates a batch now, sets no `report_month` or versions,
+copies `batch_metadata` and leaves the pool alone; use the rollover for pool brands.
 
 ## Stage 1 · Weekly capture and automatic scoring
 
@@ -361,7 +394,7 @@ Each of these removes a check or a manual step from this runbook.
 |---|---|---|
 | Scoring is not automatic | Scored by hand every week | In progress, with the scoring-model change |
 | Duplicate insert triggers posting to a Railway address | Unclear whether anything is listening | Remove one; point the other at the current API or drop both |
-| Batches created without weights or versions; pool left on last month's batch | Empty views; blank dashboard version; October captures would land in September | Copy-forward on batch creation |
+| Batches created without weights or versions; pool left on last month's batch | Empty views; blank dashboard version; October captures would land in September (and in W45, November's in October) | `rollover.py` for pool brands (brand-score-pipeline #241); the API's `/api/batches/new` still to fix |
 | Bare `gpt` label on captures | Visibility over 100% | Fixed (prompt-extractor #101) |
 | Thumbnails scored as citations | 23 junk rows on the dashboard | Fix open (brand-score-pipeline #142) |
 | PR facts not built during scoring | PR module did nothing | Run `refresh_pr_scores` in the scoring flow |
@@ -388,8 +421,10 @@ Each of these removes a check or a manual step from this runbook.
    (`scripts/register_missing_deployments.py`, ZEB-1078), and deploy only after CI passes (ZEB-1084).
 5. **Report-email check** — built (6 Oct 2026). The four campaigns sent on 5 October all match
    the dashboard.
-6. **Still to do:** schedule the setup and weekly checks after the Monday pool run and post the
-   tables to the team channel; fill the remaining brands' settings; add brand health and sentiment
+6. **Month rollover** — built (11 Nov 2026, brand-score-pipeline #241). The November batches
+   were made by a one-off script the same day; December is the first rollover by the command.
+7. **Still to do:** schedule the rollover dry run for the 1st of the month; schedule the setup and
+   weekly checks after the Monday pool run and post the tables to the team channel; fill the remaining brands' settings; add brand health and sentiment
    to the report-email check once their formulas are available outside the dashboard app.
 
 ## Guardrails

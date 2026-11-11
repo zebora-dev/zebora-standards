@@ -6,6 +6,15 @@ and this project adheres to [Semantic Versioning](https://semver.org).
 
 ## [Unreleased]
 
+### Changed
+
+- **`zebora-batch-release`** — new **Stage 0 · Month rollover** before the setup checks:
+  `scripts/batch_release/rollover.py` (brand-score-pipeline #241) creates the month's batch for
+  every weekly-pool brand with last month's weightings and versions, and moves the pool onto it.
+  It runs as a dry run first, then `--apply --by`. The setup checks' "Weekly pool" fix and the old
+  "Fix at source" note now point to it. Added after the W45 2026 pool run was missed because no
+  November batches existed.
+
 ### Fixed
 
 - **`zebora-onboard-preview-brand`** — `seed_entity_dims.py` no longer turns a raw name that is a
