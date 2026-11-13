@@ -31,6 +31,9 @@ and date. Sources are the `metadata.notes` / `change_summary` of each context ve
 | **Primary-competitor status is judged on the `brand` field**, not the entity string. | Vuse-OLD v2 |
 | **Catalogue / device lists in the context are lookup-only**: labels for spelling, never a gate and never copied into the extraction. | Vuse v9–v11 |
 | **Publisher-less items use brand "Unknown"**, never the item title repeated as its brand. | Big Potato v4 (2026-09-02) |
+| **Only names in the answer's own prose count.** The rules carry a hard "only names in the response" line, and brand lists stay out of `category_rules` (extractable types are described generically). Spellings go in code-side mappings. Without this the scorer added 10 brands to one answer straight from the rules' lists. | Biotiful v1 (2026-11-13) |
+| **Link titles and page-title patterns are not entities** ("<Product> – <Site> \| <tagline>", "<Recipe> - <Site>"), nor guides and health publications cited for advice. If an answer recommends only generic types and names no brand, extract nothing. | Biotiful v1 (2026-11-13) |
+| **Generic product types are never entities, even as a numbered list item** (kefir, skyr, Greek yoghurt, kombucha). | Biotiful v1 (2026-11-13) |
 | **Brand-row suppression is universal**, not category-specific: raise it as a scorer/prompt issue, not a context rule. | Nationwide v2 |
 
 ## Category-specific (reuse when the new brand is in the same or a close category)
@@ -62,6 +65,13 @@ and date. Sources are the `metadata.notes` / `change_summary` of each context ve
 ### Party games (Big Potato, Jun–Oct 2026)
 - Publisher is the brand, the game is the entity.
 - Review sites, retailers, price-comparison sites and online-play platforms are not entities.
+
+### Supermarket food and drink / gut health (Biotiful, Nov 2026; Lavazza, Oct 2026)
+- Consumer brands are the unit, not the parent company: Activia and Actimel are their own brands, never Danone (confirmed with Grant 2026-11-13).
+- Supermarket own-label lines count under the supermarket's name (Tesco Gut Sense → Tesco, Aldi Brooklea → Aldi, Lidl Milbona → Lidl, Waitrose Duchy Organic → Waitrose, M&S Good Gut → M&S). A supermarket named only as a place to buy ("available at Tesco", "Sainsbury's Biotiful range") is out. Lavazza v1, Biotiful v1.
+- Supplements (Symprove, Optibac, Bio-Kult, ZOE Daily30, fibre such as Fybogel) are in when recommended as the product to buy; ZOE as a science or advice source is out (confirmed with Grant 2026-11-13).
+- Branded fermented foods (kimchi, sauerkraut) recommended for gut health are in; plain foods (grains, beans, fruit) are out even when recommended.
+- Market-data and trade-press sources (Circana, The Grocer, FoodNavigator) and owner/acquirer mentions ("acquired by Müller") are out.
 
 ### Careers guidance (Talking Futures, Jun–Oct 2026)
 - T Levels is its own brand; iCould is independent, not a GOV.UK property.

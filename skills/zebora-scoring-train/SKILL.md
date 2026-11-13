@@ -35,7 +35,7 @@ nothing is written. A draft only becomes the active version at the end, once fre
 | `brand_profile` | context row | The target: names, surface forms, hierarchy, what not to credit |
 | `target_brand` / `visibility_brand_override` | context row (or dimension tables) | Who the target is, as the LLM sees it |
 | `primary_competitors` | `competitors_primary` (or dimension tables), **not** the context row | The primary tier. A wrong tier mis-tags every row (Vuse v3). |
-| `canonical_entity_mappings`, `brand_canonical_aliases` | context row JSON (fallback) | Applied by code after the LLM, never shown to it. Prefer the alias tables for spelling. |
+| `canonical_entity_mappings`, `brand_canonical_aliases` | context row JSON (fallback) | Applied by code after the LLM, never shown to it. Prefer the alias tables for spelling. **Each mapping must be an object, `{"Alias": {"brand": "X", "entity": "X"}}`: a plain string value is silently ignored** (Biotiful, Nov 2026). |
 | Alias tables (`visibility_entity_aliases`, `visibility_entity_brand_aliases`) | dimension tables | Read by the sandbox exactly as in production. Maintained through VEC. |
 
 The base prompts (`visibility-v3`, `visibility-v3-qa` in Langfuse) are shared by every brand and are **not**
