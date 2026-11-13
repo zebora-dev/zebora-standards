@@ -40,7 +40,7 @@ The scripts find the other checkouts relative to the folder that holds `zebora-s
 | Variable | Default | What it is |
 |---|---|---|
 | `ZEBORA_WORKSPACE` | the folder containing `zebora-standards` | where the checkouts sit side by side |
-| `ZEBORA_PIPELINE` | `<workspace>/brand_score_pipeline` | its `.env` has `DATABASE_URL`; its `.venv` has psycopg2, sqlalchemy and dotenv |
+| `ZEBORA_PIPELINE` | `<workspace>/brand_score_pipeline` (some machines check it out as `brand-score-pipeline`: set this explicitly) | its `.env` has `DATABASE_URL`; its `.venv` has psycopg2, sqlalchemy and dotenv |
 | `ZEBORA_DATAFORSEO_ENV` | `<workspace>/prompt-extractor/.env` | DataForSEO credentials |
 | `ZEBORA_BACKUP_ROOT` | `<workspace>/db_backup` | backups of stored rows before corrections |
 | `ZEBORA_EXTRACTION_REPO` | none (required for Phase 2) | an up-to-date `automated-extraction` checkout (zebora-dev/prompt-extractor) on `main`. It holds the DataForSEO modules and the `.env` with `BRANDSIGHT_SUPABASE_URL` / `BRANDSIGHT_SUPABASE_SERVICE_KEY` |
@@ -183,7 +183,7 @@ curl -s -X POST https://brand-score-api.fly.dev/api/workflows/score-single-outpu
   - The pool limit is 40 and each worker runs `--limit 5`, so 8 workers fill it.
   - Start: `fly machine start <id> -a brand-score-worker`. Scale: `fly scale count 8 --app brand-score-worker`.
   - **Starting or scaling workers changes production cost, so ask the user first.** Report the worker count you saw online, and stop the workers afterwards if they were stopped before.
-- **Catch stragglers.** Finish by listing active outputs that have no active score row, and submit those individually (`output_id` as a string). A batch flow can complete with an output still unscored.
+- **Catch stragglers.** Finish by listing active outputs that have no active score row, and submit those individually (`output_id` as a string). A batch flow can complete with an output still unscored. On Biotiful (13 Nov 2026) 14 of 106 (all GPT) came back unscored because the extractor returned invalid JSON on long answers. Wait until the dispatcher's status shows nothing pending, then re-submit; all 14 scored on the second pass.
 - **No forced re-scores mid-run.** Never force a re-score of an output while a batch flow is running.
 
 ## Phase 5 · Post-score check
@@ -304,7 +304,7 @@ curl -s -X POST https://brand-score-api.fly.dev/api/workflows/batch/release \
 
 `apply` returns **503 when no Prefect worker is online**. Start one first (cost GATE, as in Phase 4). It returns 409 while an earlier `apply` run for the batch, started under 6 hours ago, is still running.
 
-If the API says the `batch-release-chain` deployment is unavailable (Edison, 9 Nov 2026), run it locally. Set `PREFECT_API_URL=https://brand-score-prefect.fly.dev/api` and `PREFECT_API_AUTH_STRING` (see Setup) first: the pipeline `.env` points at a local Prefect (`127.0.0.1:4200`), and the summaries step fails against it. It takes about 10 minutes, so run it detached:
+If the API says the `batch-release-chain` deployment is unavailable (Edison, 9 Nov 2026), run it locally. Set `PREFECT_API_URL=https://brand-score-prefect.fly.dev/api` and `PREFECT_API_AUTH_STRING` (see Setup) first: the pipeline `.env` points at a local Prefect (`127.0.0.1:4200`), and the summaries step fails against it. **Read `PREFECT_API_AUTH_STRING` before you stop the workers**: it comes from `fly ssh` into a running worker. If you need to re-run only `url_refresh` and/or `readiness` after the workers are stopped, run them with `PREFECT_API_URL=` (empty, ephemeral Prefect); they don't call a deployment. It takes about 10 minutes, so run it detached:
 
 ```bash
 cd $PIPE && nohup .venv/bin/python -u scripts/batch_release/release_chain.py --batch-id <batch> --apply > /tmp/release_<slug>.log 2>&1 &
@@ -317,7 +317,10 @@ Resume a stopped chain with `--from <step>` (API: `start_from`). Run only some s
 - A mixed **Scoring model** warns instead of blocking.
 - Everything else blocks exactly as for a pool brand: scoring complete, metrics views fresh, unmatched names, target brand, URL view, URL labels (5% or fewer unclassified), junk citations, summaries.
 
-Fix a failing line at its source and re-run from that step. Waive a line only when the user accepts the reason:
+Fix a failing line at its source and re-run from that step.
+
+- **Junk citations** fails on image-host rows (`api.dataforseo.com/cdn/…` thumbnails from AI Overview, `images.openai.com`, `*.gstatic.com`). Set those `url_scores` rows `active = false` (with a `metadata.deactivated_reason`; `url_scores_base` drops inactive rows), then `--only url_refresh,readiness` (Biotiful: 3 rows).
+- **Under-extraction** warns on answers that list 5+ things with at most 1 entity. Read them before re-scoring: on Biotiful all 11 were lists of product types (Greek yoghurt, kefir, herbal teas) with no brands, so they were correct. Waive a line only when the user accepts the reason:
 ```bash
 $PY_DB scripts/batch_release/readiness.py --batch-id <id> --waive "<line>" --reason "<why>" --by "<name>"
 ```
