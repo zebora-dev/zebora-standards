@@ -366,6 +366,7 @@ Run this from a pipeline checkout on an up-to-date `main`. On 20 Oct 2026 the ma
    `go_live.py` approves and activates the batch and points `brands.batch_id` at it. For a preview, setup already pointed `brands.batch_id` at the batch, so only the approval and activation change. It needs a **recorded readiness pass from the last 24 hours**, and it saves the values it replaces so the switch can be reversed (`--rollback --apply`).
    Before brand-score-pipeline#184, `go_live.py` refused a preview with "this batch is already the brand's live batch", because setup had already pointed the brand at it. If you get that message, update `$PIPE`. Lavazza (20 Oct 2026) was switched by hand instead: `batches.is_approved = now()`.
 3. **Set `brands.status = 'live'`**, as for TransUnion. Keep `visibility_pool_enabled = false`. The rollback values are `onboarding` and the batch's previous `is_approved` (blank for a new preview).
+4. **Client MCP access (ask the user).** `onboard_setup.py` does not set `brands.config.mcpEnabled`, so until it is set the Zebora MCP lists the brand as `notLiveForClients` and the client cannot reach it through an AI assistant. Setting it opens client access, so ask first. Then merge `{"mcpEnabled": true}` into `brands.config` (keep the other keys) and check with the Zebora MCP `list_brands`: the brand shows the released month and no `notLiveForClients`. To withdraw access, set it back to `false`. Biotiful (13 Nov 2026) was set after go-live.
 
 Save a memory note with the ids, decisions and gotchas. List what is not done:
 - empty views
@@ -398,5 +399,6 @@ Save a memory note with the ids, decisions and gotchas. List what is not done:
 - [ ] release chain finished, and readiness recorded as a pass (preview profile) or with agreed waivers
 - [ ] summaries reviewed and approved by the user
 - [ ] `go_live.py --apply` run with the user's name; brand `live`; not in the weekly pool
+- [ ] client MCP access (`brands.config.mcpEnabled`) set if the user wants it, and checked with `list_brands`
 - [ ] workers stopped again if you started them
 - [ ] user told which views are empty and why
