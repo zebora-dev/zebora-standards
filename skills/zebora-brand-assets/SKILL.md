@@ -97,7 +97,7 @@ references/brand.md         colour, type, visual language, logo and copy rules (
 references/asset-types.md   sizes and layouts per asset, and which existing tool to use when
 references/ai-backgrounds.md  Brand Asset Studio brief fields, directions, base prompt
 assets/logo/                supplied logo artwork (SVG + PNG): on-dark, on-light, green icon
-assets/fonts/               Inter (Regular, Medium, SemiBold), Geist Mono SemiBold, OFL licences
+assets/fonts/               Inter (Regular, Medium, SemiBold), Roboto Mono (Medium, SemiBold; Latin), OFL licences
 examples/                   sample outputs
 ```
 

@@ -16,7 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org).
   words). Layouts `centre`, `left`, `split` and `header`, dark and light themes. Reuses
   `zebora-deck-refresh` for decks and product imagery (`image_recipes.py tilt | collage | cutout`)
   and the Brand Asset Studio for AI backgrounds. References condense the private brand guidelines
-  (v1.1) from `zebora-marketing`. Ships Inter and Geist Mono (OFL) and the logo artwork.
+  (v1.1) from `zebora-marketing`. Ships Inter and Roboto Mono (OFL, the site's label font) and the logo artwork.
 - **Plugin marketplace**: `.claude-plugin/marketplace.json` and `plugin.json` make this repo a
   marketplace with one plugin, `zebora`, that bundles every skill. Install with
   `/plugin marketplace add zebora-dev/zebora-standards` then `/plugin install zebora@zebora`, add

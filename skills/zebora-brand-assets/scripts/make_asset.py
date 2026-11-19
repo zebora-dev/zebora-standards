@@ -2,7 +2,7 @@
 """Render an on-brand Zebora image (social post, header, share image, blog header, slide, cover).
 
 Pillow only, so it runs in Claude Code and in the claude.ai / Claude desktop code sandbox.
-Fonts (Inter, Geist Mono) and the supplied logo artwork ship in ../assets.
+Fonts (Inter, Roboto Mono) and the supplied logo artwork ship in ../assets.
 
   make_asset.py --format linkedin-post --headline "Know why you are winning" \\
       --accent "winning" --eyebrow "AI visibility" --sub "One line of support." --out post.png
@@ -237,7 +237,7 @@ def paragraph(text, f, width):
 
 def draw_eyebrow(canvas, text, x, y, scale, align, theme):
     d = ImageDraw.Draw(canvas)
-    f = font("GeistMono-SemiBold.ttf", 14 * scale)
+    f = font("RobotoMono-SemiBold.ttf", 14 * scale)
     label = text.upper()
     spacing = 0.2 * f.size
     tw = sum(f.getlength(c) + spacing for c in label) - spacing

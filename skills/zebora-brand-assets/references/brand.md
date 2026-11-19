@@ -27,8 +27,9 @@ EPS logo and flag the green to the printer (the guidelines page has the CMYK bui
 
 - **Inter** for everything. Headlines 500 to 600 weight, sentence case, tight, one short phrase in
   Signal Green. Body 400, short sentences.
-- **Mono** for small uppercase labels (eyebrows, scores, metadata). The guidelines name Roboto Mono;
-  the site's share images use Geist Mono, which this skill ships.
+- **Roboto Mono** for small uppercase labels (eyebrows, scores, metadata), as on zebora.io (the
+  site loads it under the CSS variable `--font-geist-mono`; the font is Roboto Mono). The bundled
+  files are the Latin subset the site serves.
 - **Source Serif 4** only for a quotation or a principle that needs an editorial tone.
 
 ## Visual language
