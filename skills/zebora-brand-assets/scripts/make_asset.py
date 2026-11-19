@@ -58,6 +58,31 @@ def font(name, px):
     return ImageFont.truetype(str(FONTS / name), max(8, int(px)))
 
 
+# Headline type as zebora.io sets it (apps/marketing hero h1): Inter Medium, tracking -0.055em,
+# leading 0.98. Browsers pick Inter's optical size from the font size (display cut at 32 and up),
+# so the variable font is set the same way; the static text cut looks loose and round when large.
+HEADLINE_WEIGHT = 500
+HEADLINE_TRACKING = -0.055
+HEADLINE_LEADING = 0.98
+
+
+def inter(px, weight=400):
+    f = font("InterVariable.ttf", px)
+    f.set_variation_by_axes([min(32, max(14, f.size)), weight])
+    return f
+
+
+def tracked_length(f, text, tracking):
+    return f.getlength(text) + tracking * f.size * max(0, len(text) - 1)
+
+
+def draw_tracked(d, xy, text, f, fill, tracking):
+    """Letter-spaced text that keeps the font's kerning (each glyph sits at its kerned offset)."""
+    x, y = xy
+    for i, ch in enumerate(text):
+        d.text((x + f.getlength(text[:i]) + tracking * f.size * i, y), ch, font=f, fill=fill)
+
+
 def check_copy(fields):
     problems = []
     for label, text in fields.items():
@@ -197,12 +222,13 @@ def tokens(headline, accent):
     if accent and start < 0:
         sys.exit(f"--accent '{accent}' does not appear in the headline")
     for m in re.finditer(r"\S+|\n", headline):
-        hit = start >= 0 and m.start() >= start and m.end() <= start + len(accent)
+        # a word starting inside the phrase is green, so "copy." counts for an accent ending "copy"
+        hit = start >= 0 and start <= m.start() < start + len(accent)
         out.append((m.group(), hit))
     return out
 
 
-def wrap(words, f, width):
+def wrap(words, f, width, tracking=0.0):
     lines, line = [], []
     for word, hit in words:
         if word == "\n":
@@ -210,7 +236,7 @@ def wrap(words, f, width):
             line = []
             continue
         trial = " ".join(w for w, _ in line + [(word, hit)])
-        if line and f.getlength(trial) > width:
+        if line and tracked_length(f, trial, tracking) > width:
             lines.append(line)
             line = []
         line.append((word, hit))
@@ -221,14 +247,15 @@ def wrap(words, f, width):
 
 def fit_headline(words, max_px, min_px, width, max_lines):
     px = max_px
+    t = HEADLINE_TRACKING
     while px > min_px:
-        f = font("Inter-Medium.ttf", px)
-        lines = wrap(words, f, width)
-        if len(lines) <= max_lines and all(f.getlength(" ".join(w for w, _ in ln)) <= width for ln in lines):
+        f = inter(px, HEADLINE_WEIGHT)
+        lines = wrap(words, f, width, t)
+        if len(lines) <= max_lines and all(tracked_length(f, " ".join(w for w, _ in ln), t) <= width for ln in lines):
             return f, lines
         px -= 2
-    f = font("Inter-Medium.ttf", min_px)
-    return f, wrap(words, f, width)
+    f = inter(min_px, HEADLINE_WEIGHT)
+    return f, wrap(words, f, width, t)
 
 
 def paragraph(text, f, width):
@@ -266,9 +293,9 @@ def layout_text(spec, width, max_lines, max_px, scale, align, max_height):
     px = max_px
     while True:
         f, lines = fit_headline(words, px, 22 * scale, width, max_lines)
-        fs = font("Inter-Regular.ttf", max(17 * scale, f.size * 0.38))
+        fs = inter(max(17 * scale, f.size * 0.38), 400)
         sub = paragraph(spec.sub, fs, width * (0.82 if align == "centre" else 0.9)) if spec.sub else []
-        height = eyebrow_h + len(lines) * f.size * 1.06 + (22 * scale + len(sub) * fs.size * 1.4 if sub else 0)
+        height = eyebrow_h + len(lines) * f.size * HEADLINE_LEADING +(22 * scale + len(sub) * fs.size * 1.4 if sub else 0)
         if height <= max_height or f.size <= 22 * scale:
             return f, lines, fs, sub
         px = f.size - 2
@@ -287,14 +314,15 @@ def draw_text_block(canvas, spec, box, align, theme, scale, max_bottom=None):
     y = y0
     if spec.eyebrow:
         y += draw_eyebrow(canvas, spec.eyebrow, cx if align == "centre" else x0, y, scale, align, theme) + 26 * scale
-    lh = f.size * 1.06
-    space = f.getlength(" ")
+    t = HEADLINE_TRACKING
+    lh = f.size * HEADLINE_LEADING
+    space = f.getlength(" ") + t * f.size * 2
     for ln in lines:
-        lw = f.getlength(" ".join(w for w, _ in ln))
+        lw = tracked_length(f, " ".join(w for w, _ in ln), t)
         x = cx - lw / 2 if align == "centre" else x0
         for word, hit in ln:
-            d.text((x, y), word, font=f, fill=accent_colour if hit else head_colour)
-            x += f.getlength(word) + space
+            draw_tracked(d, (x, y), word, f, accent_colour if hit else head_colour, t)
+            x += tracked_length(f, word, t) + space
         y += lh
     if sub:
         y += 22 * scale
