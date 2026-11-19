@@ -6,6 +6,25 @@ and this project adheres to [Semantic Versioning](https://semver.org).
 
 ## [Unreleased]
 
+### Added
+
+- **`skills/zebora-brand-assets`**: makes on-brand Zebora images from a chat brief (LinkedIn posts
+  and covers, Open Graph share images, blog headers, slide images, story and report covers, email
+  banners). `scripts/make_asset.py` renders them with Pillow only, so it also runs in the claude.ai /
+  desktop code sandbox: Deep Field canvas, signal waves, grid, rings and registration marks, Inter
+  with one Signal Green phrase, the supplied logo, and a copy check (no em dashes, no avoid-list
+  words). Layouts `centre`, `left`, `split` and `header`, dark and light themes. Reuses
+  `zebora-deck-refresh` for decks and product imagery (`image_recipes.py tilt | collage | cutout`)
+  and the Brand Asset Studio for AI backgrounds. References condense the private brand guidelines
+  (v1.1) from `zebora-marketing`. Ships Inter and Roboto Mono (OFL, the site's label font) and the logo artwork.
+- **Plugin marketplace**: `.claude-plugin/marketplace.json` and `plugin.json` make this repo a
+  marketplace with one plugin, `zebora`, that bundles every skill. Install with
+  `/plugin marketplace add zebora-dev/zebora-standards` then `/plugin install zebora@zebora`, add
+  it in the desktop app under Customize > Plugins, or sync it to the whole Claude organisation.
+- **`skills/INSTALL.md`**: plain-English guide for adding the skills to Claude (desktop app,
+  claude.ai, Claude Code) and getting updates. **`scripts/package-skills.sh`** zips skills for
+  manual upload.
+
 ### Changed
 
 - **`zebora-batch-release`** — new **Stage 0 · Month rollover** before the setup checks:

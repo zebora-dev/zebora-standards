@@ -1,0 +1,12 @@
+{
+  "name": "zebora",
+  "description": "Zebora's shared Claude skills",
+  "owner": { "name": "Zebora" },
+  "plugins": [
+    {
+      "name": "zebora",
+      "source": "./",
+      "description": "All Zebora skills: brand assets, deck refresh, onboarding, scoring QA, batch release and more"
+    }
+  ]
+}
