@@ -26,7 +26,9 @@ EPS logo and flag the green to the printer (the guidelines page has the CMYK bui
 ## Type
 
 - **Inter** for everything. Headlines 500 to 600 weight, sentence case, tight, one short phrase in
-  Signal Green. Body 400, short sentences.
+  Signal Green. Body 400, short sentences. The renderer sets headlines as the zebora.io hero does:
+  Inter Medium, letter spacing -0.055em, line height 0.98, Inter's display optical size (the variable
+  font, as browsers pick it at large sizes).
 - **Roboto Mono** for small uppercase labels (eyebrows, scores, metadata), as on zebora.io (the
   site loads it under the CSS variable `--font-geist-mono`; the font is Roboto Mono). The bundled
   files are the Latin subset the site serves.

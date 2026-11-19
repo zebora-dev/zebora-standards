@@ -6,6 +6,13 @@ and this project adheres to [Semantic Versioning](https://semver.org).
 
 ## [Unreleased]
 
+### Fixed
+
+- **`zebora-brand-assets`** headlines now match zebora.io: Inter Medium at the site hero's letter
+  spacing (-0.055em) and line height (0.98), drawn from the variable Inter at its display optical
+  size, which replaces the three static Inter files. The Signal Green phrase now also colours a word
+  with trailing punctuation ("copy." for an accent ending "copy"). Examples re-rendered.
+
 ### Added
 
 - **`skills/zebora-brand-assets`**: makes on-brand Zebora images from a chat brief (LinkedIn posts
