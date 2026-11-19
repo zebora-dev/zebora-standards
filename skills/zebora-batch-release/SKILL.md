@@ -218,19 +218,33 @@ What should happen with no manual steps:
 2. Captures are submitted per surface. ChatGPT and Gemini go through the asynchronous queue and are
    saved by the webhook app; Google AI Overview, Claude and Perplexity are captured live.
    `dataforseo-reconcile` and `dataforseo-pool-drain` sweep up anything outstanding.
-3. Each saved output is scored: visibility, sentiment, URLs and output QA.
+3. Each saved output is scored, one flow run per output: an output check (length, refusal, echo),
+   then visibility extraction and its QA judge, then sentiment and URLs. The steps, models and cost
+   (about $0.0025 an output) are in brand-score-pipeline `docs/WORKFLOWS.md`, "Scoring one answer".
 4. The pool run is marked completed.
 
-**State on 6 Oct 2026:** capture is manual for now (pool runs are started by hand, so the ongoing
-brands are set to capture `manual`), scoring is not automatic (every September run had `score_on_complete`
-off), the capture and scoring workers are stopped, and two identical insert triggers on
-`prompts_outputs` post every new output to a scoring address on Railway. Automatic scoring is being
-rebuilt alongside a change of scoring model and may start from the second week of October.
+**State on 19 Nov 2026:** capture is manual (pool runs are started by hand, so the ongoing brands are
+set to capture `manual`) and scoring is still not automatic: `Visibility 2026-W46` had
+`score_on_complete` off, so its outputs are scored by hand. The scoring-model change that automatic
+scoring was waiting for went live on 19 Nov 2026 (extraction on `gpt-5.6-luna`, QA judge and sentiment
+on `gpt-6-luna`; `gpt-5-nano` and `gpt-5-mini` retire on 11 Dec 2026). Workers are stopped between
+jobs.
+
+**Scoring by hand.** Post the unscored output ids to `POST /api/workflows/score-single-output` as an
+array, **about 40 ids per call, waiting for each call's outputs before the next**. The dispatcher has no
+retry: on 19 Nov 2026 one call with 834 ids queued about 20 runs before a Prefect 500 stopped it. Finish
+by listing active outputs with no active score and submitting those again (`force: false` skips what is
+already scored).
 
 **When the scoring model changes mid-month.** A month's numbers should come from one scoring model
 and one prompt-context version. The weekly check's "Scoring model" line warns when a batch mixes
 them. If the model changes after week 1, decide once whether to re-score the earlier weeks with the
 new model or accept the mix, and record the decision in the release record.
+
+A scoring-model change is also written up as a **measurement note** (intel, Measurement notes): the
+first report month affected, what changed and the measured effect. We record a note instead of
+starting a new measurement baseline (decided 18 Nov 2026), so trend lines are not cut. The 19 Nov 2026
+change applies from the December 2026 report month; no batch mixes old and new models.
 
 ## Stage 2 · Weekly check
 
@@ -392,7 +406,7 @@ Each of these removes a check or a manual step from this runbook.
 
 | Problem | Effect in September | Fix |
 |---|---|---|
-| Scoring is not automatic | Scored by hand every week | In progress, with the scoring-model change |
+| Scoring is not automatic | Scored by hand every week | Open. The scoring-model change it waited for shipped on 19 Nov 2026 |
 | Duplicate insert triggers posting to a Railway address | Unclear whether anything is listening | Remove one; point the other at the current API or drop both |
 | Batches created without weights or versions; pool left on last month's batch | Empty views; blank dashboard version; October captures would land in September (and in W45, November's in October) | `rollover.py` for pool brands (brand-score-pipeline #241); the API's `/api/batches/new` still to fix |
 | Bare `gpt` label on captures | Visibility over 100% | Fixed (prompt-extractor #101) |

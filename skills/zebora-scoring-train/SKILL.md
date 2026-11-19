@@ -41,7 +41,7 @@ nothing is written. A draft only becomes the active version at the end, once fre
 The base prompts (`visibility-v3`, `visibility-v3-qa` in Langfuse) are shared by every brand and are **not**
 changed here. Phase 8 recommends prompt changes when a problem is not brand-specific.
 
-The QA verdict (gpt-5-nano) is a hint, not a label: it checks what was extracted far more than what was
+The QA verdict (`gpt-6-luna` at low reasoning since 19 Nov 2026; `gpt-5-nano` before) is a hint, not a label. On the 52-output gold set the new judge flags every incomplete extraction but also about 60% of complete ones, so expect many more `review` verdicts than before: it checks what was extracted far more than what was
 missed, and it is sometimes wrong (Twinkl 118604: "pass 1.00" while missing the top recommendation).
 
 ## Quick reference
@@ -68,7 +68,7 @@ A named phase always runs Phase 0 first.
 - **Never force a re-score of stored rows to test a rule.** Use the sandbox.
 - **Precedents first.** Read `references/precedents.md` before drafting and before asking anything.
   Ask only what it does not settle, with a recommendation each time.
-- **Cost:** a sandbox run of 10 outputs is about 10 extraction calls plus 10 QA calls (`--no-qa` halves it).
+- **Cost:** a sandbox run of 10 outputs is about 10 extraction calls plus 10 QA calls (`--no-qa` halves it), roughly $0.002 an output on the current models (extraction `gpt-5.6-luna`, QA `gpt-6-luna`).
   A full training (5 sets, 2–3 drafts each) is roughly 150–300 calls.
 - **Never print secrets.**
 
