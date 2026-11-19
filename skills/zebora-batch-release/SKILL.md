@@ -231,10 +231,12 @@ on `gpt-6-luna`; `gpt-5-nano` and `gpt-5-mini` retire on 11 Dec 2026). Workers a
 jobs.
 
 **Scoring by hand.** Post the unscored output ids to `POST /api/workflows/score-single-output` as an
-array, **about 40 ids per call, waiting for each call's outputs before the next**. The dispatcher has no
-retry: on 19 Nov 2026 one call with 834 ids queued about 20 runs before a Prefect 500 stopped it. Finish
-by listing active outputs with no active score and submitting those again (`force: false` skips what is
-already scored).
+array, **about 20 ids per call, waiting for each call's outputs before the next**. The Prefect server fails
+under load (its Supabase session pooler is capped at 15 clients) and the dispatcher has no retry: on
+19 Nov 2026 one call with 834 ids queued about 20 runs before a 500 stopped it, and in chunks of 20
+about one run in ten still crashed. Big Potato UK's 788 outputs took about 100 minutes. Finish by
+listing active outputs with no active visibility or sentiment score and submitting those again
+(`force: false` skips what is already scored). Do not deploy the pipeline while a run is in progress.
 
 **When the scoring model changes mid-month.** A month's numbers should come from one scoring model
 and one prompt-context version. The weekly check's "Scoring model" line warns when a batch mixes

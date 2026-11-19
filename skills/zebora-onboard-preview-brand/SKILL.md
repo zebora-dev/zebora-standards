@@ -65,7 +65,7 @@ Install: `ln -s <workspace>/zebora-standards/skills/zebora-onboard-preview-brand
 | Job | Use | Do NOT use |
 |---|---|---|
 | Extraction (GPT + Google AI Overview) | `extract_dataforseo.py`: one-off submit plus `reconcile_pending`. About 3 min, about 13 US cents per 100 outputs | Selenium workers, the Prefect extraction pool or the webhook machines. A preview brand needs none of them |
-| Scoring a whole batch | **Fan-out dispatcher**: `POST https://brand-score-api.fly.dev/api/workflows/score-single-output` with `output_id` as an **array of ints**. That makes one flow run per output, spread across all workers | `POST /batch/init` or the `batch-scoring-test` deployment. They run every output in ONE process, so extra workers do nothing (36 min for 106 outputs) |
+| Scoring a whole batch | **Fan-out dispatcher**: `POST https://brand-score-api.fly.dev/api/workflows/score-single-output` with `output_id` as an **array of ints**, about 20 ids per call. That makes one flow run per output, spread across all workers | `POST /batch/init` or the `batch-scoring-test` deployment. They run every output in ONE process, so extra workers do nothing (36 min for 106 outputs) |
 | Re-scoring one output | the same endpoint with `output_id` as a string and `force: true` | A forced re-score while a batch flow is still running. It can leave two active score rows |
 | DB writes | `supabase-py` with `BRANDSIGHT_SUPABASE_SERVICE_KEY` (the scripts do this) | The Supabase MCP (read-only) |
 | DDL / long statements | Supabase **SQL Editor** (the user runs it) | Direct port 5432 (blocked). Long jobs through the 6543 pooler without progress logging |
@@ -384,7 +384,7 @@ Save a memory note with the ids, decisions and gotchas. List what is not done:
 |---|---|---|
 | 1 setup | minutes (2 script fixes) | 2 min |
 | 2 extraction | 2.6 min | 3 min |
-| 4 scoring | 36 min | 2 to 5 min (fan-out, 8 workers; untested) |
+| 4 scoring | 36 min | about 12 min for 100 outputs (fan-out, 8 workers, 20 ids per call; measured at 9 outputs a minute on 19 Nov 2026, slowed by Prefect 500s under load) |
 | 5 review rounds | 3 context versions | 1 round using the base template |
 | 6 corrections | built from scratch | 5 min with the spec |
 | 7 to 10 | 30+ min, 5 refresh attempts | about 20 min: seed 2, enrich + classify in parallel 7, release chain about 10 |
