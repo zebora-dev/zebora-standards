@@ -1,6 +1,6 @@
 # skills
 
-Shared Claude Code skills for the Zebora pipeline. Each skill is a directory
+Shared Claude skills for the Zebora pipeline. Each skill is a directory
 containing a `SKILL.md` with YAML frontmatter (`name`, `description`) followed
 by the skill body (phases, queries, guardrails).
 
@@ -18,15 +18,20 @@ skills/
 
 ## Installing
 
-Skills are loaded by Claude Code from `~/.claude/skills/`. Symlink (preferred —
-updates with a `git pull`) or copy each skill directory:
+**Everyone, including non-technical colleagues:** follow [INSTALL.md](INSTALL.md). The repo is a
+Claude plugin marketplace (`.claude-plugin/`) with one plugin, `zebora`, that bundles every skill
+here, so new skills reach people without any extra step.
+
+Claude Code:
 
 ```sh
-# from the consuming machine, with zebora-standards checked out / submoduled
-ln -s "$PWD/skills/zebora-scoring-url" ~/.claude/skills/zebora-scoring-url
+/plugin marketplace add zebora-dev/zebora-standards
+/plugin install zebora@zebora
 ```
 
-Invoke with `/<skill-name> <args>` in Claude Code.
+Skills then run as `/zebora:<skill-name>`. Developers who edit skills can still symlink a skill
+folder into `~/.claude/skills/` for live edits, but remove the plugin copy or the symlink so each
+skill loads once.
 
 ## Conventions
 
@@ -47,6 +52,7 @@ Invoke with `/<skill-name> <args>` in Claude Code.
 | `zebora-scoring-train` | Build and train a brand's visibility-v3 prompt context before full scoring: brand core + nearest existing context → draft, discovery on the first 10 outputs, sandbox scoring of each draft (production scorer, nothing saved), labelling and comparison, 3–5 fresh sets of 10, then promote the draft to the active context version (and primary tier). Rebuilt 2026-11-08 after the local-only original was lost. |
 | `zebora-scoring-url` | Citation/URL Checker (UCC) — reporting-only QA for the URL scoring pipeline (completeness, cross-path reconciliation, suspect domains, duplication, classification coverage, learned-baseline drift). |
 | `zebora-deck-refresh` | Re-skin and restructure a Google Slides deck into the Zebora brand without changing its copy: brand kit, slide patterns, copy and hand-edit checkers, image recipes, Drive upload/convert workflow. Needs `npm install` + `pip3 install -r requirements.txt` in the skill folder on first use. |
+| `zebora-brand-assets` | On-brand images from a chat brief: LinkedIn posts and covers, share images, blog headers, slide images, covers, email banners. Pillow-only renderer (`scripts/make_asset.py`), brand references from `zebora-marketing`, reuses `zebora-deck-refresh` image recipes and the Brand Asset Studio. Works in Claude Code and the desktop / claude.ai app. |
 | `ratemyprompts-voice` | Draft or review RateMyPrompts copy in the brand's tone of voice (v1.1): house-rules checker (count rule, British English, no em dashes, banned SaaS words), the `zebora-ai-tells` score and the five-question writing test, by context (site, scorecard, Reddit, LinkedIn, email). |
 
 Other pipeline skills (`zebora-ops`, `zebora-batch-report`, …) can be migrated

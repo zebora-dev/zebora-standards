@@ -13,9 +13,16 @@ prefect/          # Prefect-specific orchestration conventions (extends python/)
   conventions.md
 frontend/         # Frontend conventions — marketing site + banrd-llm monorepo
   conventions.md
-skills/           # Shared Claude Code skills (see skills/README.md)
+skills/           # Shared Claude skills (see skills/README.md)
   <skill-name>/SKILL.md
+  INSTALL.md      # plain-English guide: add the skills to your Claude
+.claude-plugin/   # makes this repo a Claude plugin marketplace (plugin: zebora)
 ```
+
+## Adding the skills to Claude
+
+See [skills/INSTALL.md](skills/INSTALL.md). Works for the Claude desktop app, claude.ai and
+Claude Code.
 
 ## Consuming this repo
 
